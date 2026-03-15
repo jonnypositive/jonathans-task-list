@@ -1,18 +1,51 @@
-// ── Section metadata ──────────────────────────────────────────────────────────
-const SM={
-  calls:          {label:'Client Dates',                arr:false,perp:false,dr:true},
-  dbr:            {label:'DBR',                         arr:true, perp:false,dr:false},
-  proposals_prep: {label:'Proposals: Prep',             arr:true, perp:false,dr:false},
-  proposals_out:  {label:'Proposals: Out',              arr:true, perp:false,dr:false},
-  contracts_prep: {label:'Contracts: Prep',             arr:true, perp:false,dr:false},
-  contracts_out:  {label:'Contracts: Out',              arr:true, perp:false,dr:false},
-  tasks:          {label:'Tasks',                       arr:false,perp:true, dr:false},
-  prospecting:    {label:'Prospecting',                 arr:false,perp:false,dr:false},
-  culture:        {label:'Culture Club',                arr:false,perp:false,dr:false},
-  affinity:       {label:'Sales Manager Affinity',      arr:false,perp:false,dr:false},
-  travel:         {label:'Travel',                      arr:false,perp:false,dr:true},
-};
-const AIDS=Object.keys(SM);
+// ── Load config then boot ─────────────────────────────────────────────────────
+let CFG = {};
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/config.json');
+    if (r.ok) CFG = await r.json();
+  } catch(e) {}
+  // Defaults if config missing
+  if (!CFG.ownerName) CFG.ownerName = 'Jonathan';
+  if (!CFG.reportTitle) CFG.reportTitle = 'Daily Task List';
+  if (!CFG.timezone) CFG.timezone = 'America/Denver';
+  if (!CFG.sections) CFG.sections = {};
+  if (!CFG.meetings) CFG.meetings = {};
+}
+
+// ── Section metadata (from config) ───────────────────────────────────────────
+function getSM() {
+  const defaults = {
+    calls:          {label:'Client Dates',           hasArrival:false,hasPerp:false,hasDateRange:true},
+    dbr:            {label:'DBR',                    hasArrival:true, hasPerp:false,hasDateRange:false},
+    proposals_prep: {label:'Proposals: Prep',        hasArrival:true, hasPerp:false,hasDateRange:false},
+    proposals_out:  {label:'Proposals: Out',         hasArrival:true, hasPerp:false,hasDateRange:false},
+    contracts_prep: {label:'Contracts: Prep',        hasArrival:true, hasPerp:false,hasDateRange:false},
+    contracts_out:  {label:'Contracts: Out',         hasArrival:true, hasPerp:false,hasDateRange:false},
+    tasks:          {label:'Tasks',                  hasArrival:false,hasPerp:true, hasDateRange:false},
+    prospecting:    {label:'Prospecting',            hasArrival:false,hasPerp:false,hasDateRange:false},
+    culture:        {label:'Culture Club',           hasArrival:false,hasPerp:false,hasDateRange:false},
+    affinity:       {label:'Sales Manager Affinity', hasArrival:false,hasPerp:false,hasDateRange:false},
+    travel:         {label:'Travel',                 hasArrival:false,hasPerp:false,hasDateRange:true},
+  };
+  const sm = {};
+  Object.keys(defaults).forEach(id => {
+    const def = defaults[id];
+    const cfg = (CFG.sections && CFG.sections[id]) || {};
+    if (cfg.enabled === false) return;
+    sm[id] = {
+      label: cfg.label || def.label,
+      arr:   cfg.hasArrival !== undefined ? cfg.hasArrival : def.hasArrival,
+      perp:  cfg.hasPerp    !== undefined ? cfg.hasPerp    : def.hasPerp,
+      dr:    cfg.hasDateRange !== undefined ? cfg.hasDateRange : def.hasDateRange,
+    };
+  });
+  return sm;
+}
+
+let SM = {};
+let AIDS = [];
 
 // ── Default data ──────────────────────────────────────────────────────────────
 const INIT={
@@ -110,17 +143,16 @@ const INIT={
     {text:'Connect Fall Marketplace Tampa',done:false,priority:'none',travelStart:'2026-08-24',travelEnd:'2026-08-26'},
     {text:'Beyond Dallas and Houston',done:false,priority:'none',travelStart:'2026-09-07',travelEnd:'2026-09-10'},
   ],
-  recap:'Your most pressing items today are the Expense Report from MIC On-Site, the follow-up emails to MIC panelists, the email to Leslie and Jenni Garrity regarding the MIC session, the Yoga on the Range Marketing Plan, and the PBR/USAFA Football Contract status — all high priority and best addressed before the week picks up momentum. On the contracts side, US Foods Addendum, IPT Credits, and HPN Alliance all need prep attention, while the 49ers contract is already out awaiting response. Travel is stacking up fast with Destination West in Boulder just five weeks out (April 19), followed immediately by the Florida Trip and Tour Connection NYC. The Culture Club meeting on March 18 and the Sales Manager Affinity Group meeting on March 26 are both high priority.',
+  recap:'Your most pressing items today are the Expense Report from MIC On-Site, the follow-up emails to MIC panelists, the email to Leslie and Jenni Garrity regarding the MIC session, the Yoga on the Range Marketing Plan, and the PBR/USAFA Football Contract status.',
 };
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let T={},filt='all',ec=null,openDP=null;
 let dragSrc=null,dragIdx=null,dropTargetIdx=null;
-let syncTimer=null,syncState='idle';
+let syncTimer=null;
 
 // ── Sync helpers ──────────────────────────────────────────────────────────────
 function setSyncStatus(state,msg){
-  syncState=state;
   const el=document.getElementById('syncStatus');
   const msgEl=document.getElementById('syncMsg');
   el.className='sync-status '+state;
@@ -142,7 +174,6 @@ async function loadFromCloud(){
       }
     }
   }catch(e){}
-  // Fall back to localStorage or INIT
   try{
     const s=localStorage.getItem('jdtl_v5');
     if(s){T=JSON.parse(s);AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});}
@@ -172,7 +203,7 @@ function scheduleSave(){
   syncTimer=setTimeout(saveToCloud,1200);
 }
 
-// ── Data helpers ──────────────────────────────────────────────────────────────
+// ── Date helpers ──────────────────────────────────────────────────────────────
 function srt(a){
   const p=a.filter(t=>t.perpetual),h=a.filter(t=>!t.perpetual&&t.text&&t.priority==='high'&&!t.done);
   const r=a.filter(t=>!t.perpetual&&t.text&&!(t.priority==='high'&&!t.done)),b=a.filter(t=>!t.perpetual&&!t.text);
@@ -191,6 +222,26 @@ function fmt(s){
   if(!s)return null;const f=efy(s),p=f.split('-');if(p.length!==3)return s;
   const y=parseInt(p[0],10),m=parseInt(p[1],10),d=parseInt(p[2],10);
   if(isNaN(y)||isNaN(m)||isNaN(d))return s;return m+'/'+d+'/'+String(y).slice(-2);
+}
+
+function getMeetingDate(key){
+  const m = CFG.meetings && CFG.meetings[key];
+  if (!m) return '';
+  const anchor = new Date(m.anchor + 'T00:00:00');
+  const tz = CFG.timezone || 'America/Denver';
+  const nowMT = new Date(new Date().toLocaleString('en-US',{timeZone:tz}));
+  let next = new Date(anchor);
+  while(next <= nowMT) next.setDate(next.getDate() + (m.intervalDays || 14));
+  const dateStr = next.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:tz}).replace(/,\s+\d{4}$/,'');
+  return dateStr + ' @ ' + m.time;
+}
+
+function dbrDate(){
+  const tz=CFG.timezone||'America/Denver';
+  const n=new Date(),day=n.getDay(),h=n.getHours();let d=new Date(n);
+  if(day===0)d.setDate(d.getDate()+1);else if(day===6)d.setDate(d.getDate()+2);
+  else if(h>=(CFG.dbr&&CFG.dbr.afterHour||9)){d.setDate(d.getDate()+(day===5?3:1));if(d.getDay()===6)d.setDate(d.getDate()+2);if(d.getDay()===0)d.setDate(d.getDate()+1);}
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:tz});
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -239,7 +290,7 @@ function openAdd(pre){
 function onSecChange(){
   const sid=document.getElementById('mSec').value,fields=document.getElementById('mFields'),ok=document.getElementById('mOK');
   if(!sid){fields.style.display='none';ok.style.display='none';return;}
-  const m=SM[sid];
+  const m=SM[sid];if(!m)return;
   document.getElementById('mTag').textContent=m.label;
   document.getElementById('mPerpRow').style.display=m.perp?'flex':'none';
   document.getElementById('mArrRow').style.display=m.arr?'block':'none';
@@ -267,21 +318,21 @@ document.addEventListener('keydown',e=>{
 });
 
 function exportDoc(){
-  const data={tasks:T,recap:document.getElementById('recapText').textContent};
+  const data={tasks:T,recap:document.getElementById('recapText').textContent,config:CFG};
   setSyncStatus('syncing','Generating...');
   fetch('/.netlify/functions/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
-    .then(r=>{
-      if(!r.ok)throw new Error('Export failed');
-      return r.blob();
-    })
+    .then(r=>{if(!r.ok)throw new Error('Export failed');return r.blob();})
     .then(blob=>{
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
+      const tz=CFG.timezone||'America/Denver';
       const now=new Date();
-      const mo=String(now.getMonth()+1).padStart(2,'0');
-      const dd=String(now.getDate()).padStart(2,'0');
-      const yy=now.getFullYear();
-      a.href=url;a.download='jonathans_task_list_'+mo+'-'+dd+'-'+yy+'.docx';
+      const parts=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',day:'2-digit',timeZone:tz}).formatToParts(now);
+      const mo=parts.find(p=>p.type==='month').value;
+      const dd=parts.find(p=>p.type==='day').value;
+      const yy=parts.find(p=>p.type==='year').value;
+      const name=(CFG.ownerName||'task')+'_list_'+mo+'-'+dd+'-'+yy+'.docx';
+      a.href=url;a.download=name;
       document.body.appendChild(a);a.click();document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setSyncStatus('saved','Export ready');
@@ -320,10 +371,10 @@ function pl(p){return{high:'High',med:'Med',low:'Low',none:'\u2013'}[p]||'\u2013
 function bc(p){return{high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn';}
 
 function rows(sid,arr){
-  const m=SM[sid];
+  const m=SM[sid];if(!m)return'';
   let src=filt==='active'?arr.map((t,i)=>({...t,_i:i})).filter(t=>!t.done):filt==='done'?arr.map((t,i)=>({...t,_i:i})).filter(t=>t.done&&!t.perpetual):arr;
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'${sid}',this)"`;
-  if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items — drop here or use + Add task</div></div>`;
+  if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items — use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
     const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=t.priority==='high'&&!t.done&&!ip;
@@ -353,13 +404,8 @@ function rows(sid,arr){
   return`<div class="tlist" ${dz}>${h}</div>`;
 }
 
-function sec(cls,title,sid,sub){return`<div class="sec ${cls}"><div class="shead"><span class="stitle">${title}${sub?`<span class="ssub">&mdash; ${sub}</span>`:''}</span></div>${rows(sid,T[sid]||[])}</div>`;}
-
-function dbrDate(){
-  const n=new Date(),day=n.getDay(),h=n.getHours();let d=new Date(n);
-  if(day===0)d.setDate(d.getDate()+1);else if(day===6)d.setDate(d.getDate()+2);
-  else if(h>=9){d.setDate(d.getDate()+(day===5?3:1));if(d.getDay()===6)d.setDate(d.getDate()+2);if(d.getDay()===0)d.setDate(d.getDate()+1);}
-  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+function sec(cls,title,sid,sub){
+  return`<div class="sec ${cls}"><div class="shead"><span class="stitle">${title}${sub?`<span class="ssub">&mdash; ${sub}</span>`:''}</span></div>${rows(sid,T[sid]||[])}</div>`;
 }
 
 function prosCols(){
@@ -367,6 +413,7 @@ function prosCols(){
   const src=filt==='active'?all.filter(t=>!t.done):filt==='done'?all.filter(t=>t.done):all;
   const wi=src.map((t,i)=>({...t,_i:i}));
   const mid=Math.ceil(wi.length/2),left=wi.slice(0,mid),right=wi.slice(mid);
+  const label=SM.prospecting?SM.prospecting.label:'Prospecting';
   function cr(items){
     if(!items.length)return`<div class="noitems">Empty</div>`;
     let h='',sh=false,st=false;
@@ -390,31 +437,148 @@ function prosCols(){
     return h;
   }
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'prospecting',this)"`;
-  return`<div class="proswrap"><div class="shead"><span class="stitle">Prospecting</span></div><div class="scols"><div class="scol"><div class="tlist" ${dz}>${cr(left)}</div></div><div class="scol"><div class="tlist" ${dz}>${cr(right)}</div></div></div></div>`;
+  return`<div class="proswrap"><div class="shead"><span class="stitle">${label}</span></div><div class="scols"><div class="scol"><div class="tlist" ${dz}>${cr(left)}</div></div><div class="scol"><div class="tlist" ${dz}>${cr(right)}</div></div></div></div>`;
+}
+
+// ── Build section dropdown from config ────────────────────────────────────────
+function buildSectionDropdown(){
+  const sel=document.getElementById('mSec');
+  // Clear existing options except the placeholder
+  while(sel.options.length>1)sel.remove(1);
+  Object.entries(SM).forEach(([id,m])=>{
+    const opt=document.createElement('option');
+    opt.value=id;opt.textContent=m.label;
+    sel.appendChild(opt);
+  });
 }
 
 function render(){
   const g=document.getElementById('grid');
+  const tz=CFG.timezone||'America/Denver';
   const now=new Date();
-  document.getElementById('titleDate').textContent=now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:'America/Denver'})+' \u00b7 '+now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'America/Denver'});
+  document.getElementById('titleDate').textContent=
+    now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz})+
+    ' \u00b7 '+
+    now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:tz});
+
+  // Update page title
+  document.title=(CFG.ownerName?CFG.ownerName+"'s ":'')+(CFG.reportTitle||'Daily Task List');
+  document.querySelector('.hdr-left h1').textContent=(CFG.ownerName?CFG.ownerName+"'s ":'')+(CFG.reportTitle||'Daily Task List');
+
+  // Update logo
+  const logoImg=document.querySelector('.hdr-logo img');
+  if(CFG.logo){
+    logoImg.src=CFG.logo;
+    logoImg.style.display='';
+    document.querySelector('.hdr').style.background=CFG.logoBackground||'#1F3864';
+  } else {
+    logoImg.style.display='none';
+  }
+
   let ta=0,td=0,th=0;
   AIDS.forEach(id=>(T[id]||[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(t.priority==='high'&&!t.done)th++;}}));
-  document.getElementById('sT').textContent=ta;document.getElementById('sD').textContent=td;
-  document.getElementById('sR').textContent=ta-td;document.getElementById('sH').textContent=th;
+  document.getElementById('sT').textContent=ta;
+  document.getElementById('sD').textContent=td;
+  document.getElementById('sR').textContent=ta-td;
+  document.getElementById('sH').textContent=th;
+
+  const cultureLabel=(SM.culture?SM.culture.label:'Culture Club')+' \u2014 '+getMeetingDate('culture');
+  const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' \u2014 '+getMeetingDate('affinity');
+
   g.innerHTML='';
-  g.innerHTML+=sec('sec','Client Dates','calls');
-  g.innerHTML+=sec('sec','DBR','dbr',dbrDate());
-  g.innerHTML+=`<div class="pwrap"><div class="shead"><span class="stitle">Proposals</span></div><div class="scols"><div class="scol"><div class="scholdr"><span>Prep</span></div>${rows('proposals_prep',T.proposals_prep||[])}</div><div class="scol"><div class="scholdr"><span>Out</span></div>${rows('proposals_out',T.proposals_out||[])}</div></div></div>`;
-  g.innerHTML+=`<div class="cwrap"><div class="shead"><span class="stitle">Contracts</span></div><div class="scols"><div class="scol"><div class="scholdr"><span>Prep</span></div>${rows('contracts_prep',T.contracts_prep||[])}</div><div class="scol"><div class="scholdr"><span>Out</span></div>${rows('contracts_out',T.contracts_out||[])}</div></div></div>`;
-  g.innerHTML+=sec('sfull','Tasks','tasks');
-  g.innerHTML+=prosCols();
-  g.innerHTML+=sec('sec','Culture Club','culture');
-  g.innerHTML+=sec('sec','Sales Manager Affinity','affinity');
-  g.innerHTML+=sec('sfull','Travel','travel');
+  if(SM.calls)  g.innerHTML+=sec('sec',SM.calls.label,'calls');
+  if(SM.dbr)    g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
+  if(SM.proposals_prep||SM.proposals_out){
+    g.innerHTML+=`<div class="pwrap"><div class="shead"><span class="stitle">Proposals</span></div><div class="scols">
+      <div class="scol"><div class="scholdr"><span>${SM.proposals_prep?SM.proposals_prep.label:'Prep'}</span></div>${rows('proposals_prep',T.proposals_prep||[])}</div>
+      <div class="scol"><div class="scholdr"><span>${SM.proposals_out?SM.proposals_out.label:'Out'}</span></div>${rows('proposals_out',T.proposals_out||[])}</div>
+    </div></div>`;
+  }
+  if(SM.contracts_prep||SM.contracts_out){
+    g.innerHTML+=`<div class="cwrap"><div class="shead"><span class="stitle">Contracts</span></div><div class="scols">
+      <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
+      <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span></div>${rows('contracts_out',T.contracts_out||[])}</div>
+    </div></div>`;
+  }
+  if(SM.tasks)       g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
+  if(SM.prospecting) g.innerHTML+=prosCols();
+  if(SM.culture)     g.innerHTML+=sec('sec',cultureLabel,'culture');
+  if(SM.affinity)    g.innerHTML+=sec('sec',affinityLabel,'affinity');
+  if(SM.travel)      g.innerHTML+=sec('sfull',SM.travel.label,'travel');
 }
 
-// ── Recap editable ────────────────────────────────────────────────────────────
+
+// ── AI Recap Generator ────────────────────────────────────────────────────────
+async function generateRecap(){
+  const btn = document.getElementById('recapGenBtn');
+  const el  = document.getElementById('recapText');
+  btn.disabled = true;
+  btn.classList.add('loading');
+  btn.textContent = 'Generating...';
+
+  // Build task summary from current data
+  const tz = CFG.timezone || 'America/Denver';
+  const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz});
+  const lines = [];
+
+  AIDS.forEach(sid => {
+    const m = SM[sid]; if(!m) return;
+    const active = (T[sid]||[]).filter(t=>t.text&&!t.done);
+    if(!active.length) return;
+    lines.push(m.label+':');
+    active.forEach(t=>{
+      let line='  - '+t.text;
+      if(t.priority==='high') line+=' [HIGH PRIORITY]';
+      if(t.perpetual)         line+=' [perpetual]';
+      if(t.arrival)           line+=' (arrival: '+fmt(t.arrival)+')';
+      if(t.travelStart||t.travelEnd) line+=' (travel: '+(t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')+')';
+      lines.push(line);
+    });
+  });
+
+  const owner = CFG.ownerName || 'the user';
+  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a brief, practical 3-5 sentence daily recap in flowing prose (no bullet points) that highlights: what needs immediate attention today, any time-sensitive items, upcoming travel, and a general note on the workload. Reply with ONLY the recap text — no preamble.
+
+Task list:
+${lines.join('\n')}`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:500,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data = await resp.json();
+    const text = data.content && data.content[0] && data.content[0].text;
+    if(text){
+      el.textContent = text;
+      scheduleSave();
+    } else {
+      el.textContent = 'Unable to generate recap — please try again.';
+    }
+  } catch(err){
+    el.textContent = 'Unable to generate recap — check your connection.';
+  }
+
+  btn.disabled = false;
+  btn.classList.remove('loading');
+  btn.textContent = 'Generate with AI';
+}
 document.getElementById('recapText').addEventListener('blur',()=>scheduleSave());
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-loadFromCloud().then(()=>{sf('all');render();});
+async function init(){
+  await loadConfig();
+  SM = getSM();
+  AIDS = Object.keys(SM);
+  buildSectionDropdown();
+  await loadFromCloud();
+  sf('all');
+  render();
+}
+
+init();
