@@ -4,13 +4,19 @@ exports.handler = async (event) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
 
   try {
     const store = getStore("tasklist");
 
     if (event.httpMethod === "GET") {
-      const data = await store.get("data", { type: "json" });
+      const raw = await store.get("data");
+      const data = raw ? JSON.parse(raw) : null;
       return {
         statusCode: 200,
         headers: { ...headers, "Content-Type": "application/json" },
@@ -31,10 +37,10 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: "Method not allowed" };
 
   } catch (err) {
-    console.error(err);
+    console.error("Blobs error:", err.message, err.stack);
     return {
       statusCode: 500,
-      headers,
+      headers: { ...headers, "Content-Type": "application/json" },
       body: JSON.stringify({ error: err.message }),
     };
   }
