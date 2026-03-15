@@ -204,10 +204,14 @@ exports.handler = async (event) => {
     function buildRecap(recapText){
       if(!recapText||!recapText.trim())return null;
       // Strip HTML tags (app stores recap as innerHTML with <p> tags)
-      const stripped=recapText.replace(/<p[^>]*>/gi,'\n\n').replace(/<\/p>/gi,'').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');
-      // Split on double newlines, fall back to single newlines
-      const raw=stripped.split(/\n\n+/).map(p=>p.trim()).filter(p=>p.length>0);
-      const paragraphs=raw.length>1?raw:stripped.split(/\n/).map(p=>p.trim()).filter(p=>p.length>0);
+      const stripped=recapText.replace(/<p[^>]*>/gi,'\n\n').replace(/<\/p>/gi,'').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').trim();
+      // Try double newlines first, then single newlines
+      let paragraphs=stripped.split(/\n\n+/).map(p=>p.trim()).filter(p=>p.length>0);
+      if(paragraphs.length===1){paragraphs=stripped.split(/\n/).map(p=>p.trim()).filter(p=>p.length>0);}
+      // If still one block, split on sentence boundaries (. ! ?) followed by space+capital letter
+      if(paragraphs.length===1){
+        paragraphs=stripped.split(/(?<=[.!?])\s+(?=[A-Z])/).map(p=>p.trim()).filter(p=>p.length>0);
+      }
       const rows=[];
       rows.push(new TableRow({cantSplit:true,children:[hCell('Daily Recap',W)]}));
       paragraphs.forEach((para,i)=>{
