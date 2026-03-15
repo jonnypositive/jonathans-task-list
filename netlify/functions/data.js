@@ -12,7 +12,11 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore("tasklist");
+    const store = getStore({
+      name: "tasklist",
+      siteID: process.env.NETLIFY_SITE_ID,
+      token: process.env.NETLIFY_TOKEN,
+    });
 
     if (event.httpMethod === "GET") {
       const raw = await store.get("data");
@@ -37,7 +41,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: "Method not allowed" };
 
   } catch (err) {
-    console.error("Blobs error:", err.message, err.stack);
+    console.error("Blobs error:", err.message);
     return {
       statusCode: 500,
       headers: { ...headers, "Content-Type": "application/json" },
