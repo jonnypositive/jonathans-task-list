@@ -18,15 +18,18 @@ exports.handler = async (event) => {
     const { prompt } = JSON.parse(event.body);
     const apiKey = process.env.ANTHROPIC_API_KEY;
 
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY not configured");
-    }
+    console.log("API key present:", !!apiKey);
+    console.log("API key length:", apiKey ? apiKey.length : 0);
+
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
 
     const payload = JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-opus-4-5",
       max_tokens: 500,
       messages: [{ role: "user", content: prompt }],
     });
+
+    console.log("Sending request to Anthropic...");
 
     const text = await new Promise((resolve, reject) => {
       const req = https.request({
@@ -41,10 +44,16 @@ exports.handler = async (event) => {
         },
       }, (res) => {
         let data = "";
+        console.log("Response status:", res.statusCode);
         res.on("data", chunk => data += chunk);
         res.on("end", () => {
+          console.log("Response body:", data.substring(0, 200));
           try {
             const parsed = JSON.parse(data);
+            if (parsed.error) {
+              reject(new Error(parsed.error.message || JSON.stringify(parsed.error)));
+              return;
+            }
             const txt = parsed.content && parsed.content[0] && parsed.content[0].text;
             resolve(txt || "");
           } catch(e) { reject(e); }
