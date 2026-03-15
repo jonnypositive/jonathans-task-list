@@ -543,17 +543,13 @@ Task list:
 ${lines.join('\n')}`;
 
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+    const resp = await fetch('/.netlify/functions/recap',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:500,
-        messages:[{role:'user',content:prompt}]
-      })
+      body:JSON.stringify({prompt})
     });
     const data = await resp.json();
-    const text = data.content && data.content[0] && data.content[0].text;
+    const text = data.text;
     if(text){
       el.textContent = text;
       scheduleSave();
