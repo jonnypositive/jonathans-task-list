@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Jonathan's Daily Task List</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;color:#1a1a1a}
+.app{max-width:980px;margin:0 auto;padding:16px}
+.hdr{background:#1F3864;border-radius:10px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.hdr-left h1{font-size:20px;font-weight:600;color:#fff;line-height:1.2}
+.hdr-left .subdate{font-size:13px;color:#b8c8dc;margin-top:3px}
+.hdr-logo img{height:44px;opacity:.95}
+.hdr-logo{text-align:right}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+button{cursor:pointer;font-family:inherit;font-size:13px;border-radius:7px;border:1px solid #d0d5dd;background:#fff;color:#1a1a1a;padding:5px 11px;transition:all .15s}
+button:hover{background:#f5f5f5}
+.bp{background:#1F3864;color:#fff;border-color:#1F3864;font-weight:500}
+.bp:hover{background:#162a50;opacity:1}
+.bd{color:#c0392b;border-color:#e8b4b0}
+.bd:hover{background:#fdf0ef}
+.btn-add{background:#185FA5;color:#fff;border-color:#185FA5;font-weight:500}
+.btn-add:hover{background:#0c447c}
+.fbtn{font-size:12px;padding:4px 10px}
+.fbtn.on{background:#1F3864;color:#fff;border-color:#1F3864}
+.sync-status{font-size:11px;padding:4px 10px;border-radius:7px;border:1px solid #d0d5dd;background:#fff;color:#666;display:flex;align-items:center;gap:5px;margin-left:auto}
+.sync-status.syncing{color:#185FA5;border-color:#185FA5}
+.sync-status.saved{color:#27ae60;border-color:#b8e4c9}
+.sync-status.error{color:#c0392b;border-color:#e8b4b0}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.recap-strip{border-left:4px solid #185FA5;padding:9px 13px;margin-bottom:14px;background:#eef4fb;border-radius:0 8px 8px 0}
+.recap-label{font-size:10px;font-weight:600;color:#185FA5;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.recap-text{font-size:13px;color:#1a1a1a;line-height:1.65;outline:none;min-height:20px}
+.recap-text:focus{background:#e4edf8;border-radius:4px;padding:2px 4px}
+.stats{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+.stat{font-size:12px;color:#666}
+.stat strong{color:#1a1a1a;font-weight:600}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+.sec{background:#fff;border:1px solid #e0e4ea;border-radius:10px;overflow:hidden}
+.sfull{grid-column:1/-1}
+.shead{display:flex;align-items:center;padding:8px 12px;background:#f7f8fa;border-bottom:1px solid #e0e4ea}
+.stitle{font-size:13px;font-weight:600;color:#1F3864;flex:1}
+.ssub{font-size:11px;color:#888;margin-left:5px;font-weight:400}
+.tlist{padding:3px 0;min-height:30px}
+.tlist.drag-over{background:rgba(24,95,165,.06);outline:2px dashed #378ADD;outline-offset:-2px;border-radius:6px}
+.divrow{font-size:10px;color:#999;padding:3px 11px;border-bottom:1px solid #f0f0f0;background:#fafafa;letter-spacing:.05em;text-transform:uppercase;font-weight:500}
+.divrow.hi{background:#fff5f5;color:#c0392b}
+.divrow.perp{background:#f0f6ff;color:#185FA5}
+.trow{display:flex;align-items:center;gap:7px;padding:5px 9px;border-bottom:1px solid #f0f2f5;min-height:30px;transition:background .1s;position:relative}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:#f7f9fc}
+.trow.prow{background:#f0f6ff}
+.trow.prow:hover{background:#e4edf8}
+.trow.hirow{background:#fff5f5}
+.trow.hirow:hover{background:#fdecea}
+.trow.dragging{opacity:.3}
+.trow.drop-above{border-top:2px solid #378ADD}
+.trow.done .tspan{text-decoration:line-through;color:#aaa}
+.dh{display:flex;flex-direction:column;gap:2px;flex-shrink:0;opacity:.25;cursor:grab;padding:2px 2px 2px 0}
+.dh span{display:block;width:11px;height:1.5px;background:#555;border-radius:1px}
+.trow:hover .dh{opacity:.6}
+.chk{width:16px;height:16px;min-width:16px;border:1.5px solid #c0c8d8;border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0;transition:all .1s}
+.chk.on{background:#1F3864;color:#fff;border-color:#1F3864}
+.chk.pc{border-color:#185FA5;color:#185FA5;font-size:12px;cursor:default}
+.tspan{font-size:12.5px;color:#1a1a1a;word-break:break-word;cursor:text;flex:1;min-width:0}
+.tedit{flex:1;font-size:12.5px;color:#1a1a1a;background:#eef4fb;border:1.5px solid #378ADD;border-radius:5px;padding:2px 7px;font-family:inherit;outline:none;min-width:0}
+.pb{font-size:10px;padding:1px 6px;border-radius:5px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.bh{background:#fdecea;color:#c0392b}.bm{background:#fef9ec;color:#b7770d}.bl{background:#eafaf1;color:#1e8449}.bn{background:#f5f5f5;color:#999}
+.perpb{font-size:10px;padding:1px 6px;border-radius:5px;font-weight:600;white-space:nowrap;background:#e4edf8;color:#185FA5;flex-shrink:0}
+.dbadge{font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;cursor:pointer;border:1px dashed #c8d0dc;background:#f7f8fa;color:#888;flex-shrink:0;text-align:center}
+.dbadge.set{background:#eafaf1;color:#1e8449;border-style:solid}
+.delbtn{font-size:12px;opacity:0;color:#aaa;padding:1px 4px;border:none;background:transparent;cursor:pointer;flex-shrink:0}
+.trow:hover .delbtn{opacity:1}
+.dprow{display:flex;align-items:center;gap:7px;padding:6px 9px 7px 36px;background:#f7f8fa;border-top:1px solid #f0f2f5;flex-wrap:wrap}
+.dprow input[type=date]{font-size:12px;padding:4px 8px;border:1px solid #c8d0dc;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;outline:none}
+.dprow input[type=date]:focus{border-color:#378ADD}
+.dplbl{font-size:11px;color:#888;white-space:nowrap}
+.noitems{padding:7px 11px;font-size:11px;color:#aaa;font-style:italic}
+.pwrap,.cwrap,.proswrap{grid-column:1/-1;background:#fff;border:1px solid #e0e4ea;border-radius:10px;overflow:hidden}
+.scols{display:grid;grid-template-columns:1fr 1fr}
+@media(max-width:640px){.scols{grid-template-columns:1fr}}
+.scol:first-child{border-right:1px solid #f0f0f0}
+.scholdr{display:flex;align-items:center;padding:6px 11px;border-bottom:1px solid #f0f2f5;background:#f7f8fa}
+.scholdr span{font-size:12px;color:#555;font-weight:600}
+.bbar{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid #e0e4ea}
+.bbar-r{display:flex;gap:8px;align-items:center}
+.movl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal{background:#fff;border-radius:12px;padding:22px;width:420px;max-width:100%;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.modal h3{font-size:16px;font-weight:600;margin-bottom:14px;color:#1F3864}
+.modal select,.modal input[type=text],.modal input[type=date]{width:100%;font-size:13px;padding:7px 10px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#1a1a1a;font-family:inherit;margin-bottom:10px;outline:none}
+.modal select:focus,.modal input:focus{border-color:#378ADD}
+.mlbl{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500}
+.mfield{margin-bottom:10px}
+.mrow2{display:flex;gap:10px}
+.mrow2 .mfield{flex:1}
+.mchk{display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:13px;color:#1a1a1a}
+.mchk input{width:15px;height:15px;cursor:pointer}
+.macts{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+.mdiv{height:1px;background:#f0f2f5;margin:12px 0}
+.stag{display:inline-block;font-size:11px;padding:3px 9px;border-radius:20px;background:#e4edf8;color:#185FA5;font-weight:600;margin-bottom:12px}
+.load-screen{display:flex;align-items:center;justify-content:center;min-height:60vh;flex-direction:column;gap:12px;color:#888}
+.spinner{width:32px;height:32px;border:3px solid #e0e4ea;border-top-color:#185FA5;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app" id="appTop">
+
+  <div class="hdr">
+    <div class="hdr-left">
+      <h1>Jonathan's Daily Task List</h1>
+      <div class="subdate" id="titleDate"></div>
+    </div>
+    <div class="hdr-logo">
+      <img src="hotel_polaris_logo_white.png" alt="Hotel Polaris" onerror="this.style.display='none'"/>
+    </div>
+  </div>
+
+  <div class="recap-strip">
+    <div class="recap-label">Daily recap</div>
+    <div class="recap-text" id="recapText" contenteditable="true" spellcheck="false">Click to edit your daily recap...</div>
+  </div>
+
+  <div class="toolbar">
+    <button class="fbtn" id="fAll" onclick="sf('all')">All</button>
+    <button class="fbtn" id="fActive" onclick="sf('active')">Active</button>
+    <button class="fbtn" id="fDone" onclick="sf('done')">Done</button>
+    <button class="bd" onclick="clearDone()">Clear completed</button>
+    <button class="btn-add" onclick="openAdd(null)">+ Add task</button>
+    <button class="bp" onclick="exportDoc()">Export .docx</button>
+    <div class="sync-status" id="syncStatus"><div class="dot"></div><span id="syncMsg">Loading...</span></div>
+  </div>
+
+  <div class="stats">
+    <span class="stat">Total: <strong id="sT">0</strong></span>
+    <span class="stat">Done: <strong id="sD">0</strong></span>
+    <span class="stat">Remaining: <strong id="sR">0</strong></span>
+    <span class="stat" style="color:#c0392b">High priority: <strong id="sH">0</strong></span>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="bbar">
+    <button onclick="scrollToTop()" style="font-size:12px">&#8593; Return to top</button>
+    <div class="bbar-r">
+      <button class="btn-add" onclick="openAdd(null)">+ Add task</button>
+      <button class="bp" onclick="exportDoc()">Export .docx</button>
+    </div>
+  </div>
+
+  <div id="modalWrap" style="display:none">
+    <div class="movl" onclick="handleOverlayClick(event)">
+      <div class="modal" onclick="event.stopPropagation()">
+        <h3>Add task</h3>
+        <div class="mfield">
+          <label class="mlbl">Section</label>
+          <select id="mSec" onchange="onSecChange()">
+            <option value="">— Select a section —</option>
+            <option value="calls">Client Dates</option>
+            <option value="dbr">DBR</option>
+            <option value="proposals_prep">Proposals: Prep</option>
+            <option value="proposals_out">Proposals: Out</option>
+            <option value="contracts_prep">Contracts: Prep</option>
+            <option value="contracts_out">Contracts: Out</option>
+            <option value="tasks">Tasks</option>
+            <option value="prospecting">Prospecting</option>
+            <option value="culture">Culture Club</option>
+            <option value="affinity">Sales Manager Affinity</option>
+            <option value="travel">Travel</option>
+          </select>
+        </div>
+        <div id="mFields" style="display:none">
+          <div class="mdiv"></div>
+          <div id="mTag" class="stag"></div>
+          <div class="mfield"><label class="mlbl">Description</label><input type="text" id="mtxt" placeholder="Enter task description..."/></div>
+          <div class="mfield"><label class="mlbl">Priority</label>
+            <select id="mpri"><option value="none">None</option><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></select>
+          </div>
+          <div id="mPerpRow" class="mchk" style="display:none"><input type="checkbox" id="mperp"/><span>Perpetual (always stays on list)</span></div>
+          <div id="mArrRow" style="display:none" class="mfield"><label class="mlbl">Arrival date <span style="font-weight:400;color:#aaa">(optional)</span></label><input type="date" id="marr"/></div>
+          <div id="mDRRow" style="display:none">
+            <div class="mrow2">
+              <div class="mfield"><label class="mlbl">Start date</label><input type="date" id="mts"/></div>
+              <div class="mfield"><label class="mlbl">End date</label><input type="date" id="mte"/></div>
+            </div>
+          </div>
+        </div>
+        <div class="macts"><button onclick="closeM()">Cancel</button><button class="bp" id="mOK" onclick="confirmM()" style="display:none">Add task</button></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
