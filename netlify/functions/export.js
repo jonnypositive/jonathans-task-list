@@ -218,7 +218,7 @@ exports.handler = async (event) => {
       const rows=[];
       rows.push(new TableRow({cantSplit:true,children:[hCell('Notes',W)]}));
       for(let i=0;i<rowCount;i++){
-        rows.push(new TableRow({height:{value:400,rule:'exact'},cantSplit:true,children:[new TableCell({borders:B,width:{size:W,type:WidthType.DXA},shading:{fill:i%2===1?C.alt:C.white,type:ShadingType.CLEAR},margins:{top:0,bottom:0,left:120,right:120},children:[new Paragraph({children:[new TextRun({text:' ',font:FONT,size:17})]})]})]});
+        rows.push(new TableRow({height:{value:400,rule:'exact'},cantSplit:true,children:[new TableCell({borders:B,width:{size:W,type:WidthType.DXA},shading:{fill:i%2===1?C.alt:C.white,type:ShadingType.CLEAR},margins:{top:0,bottom:0,left:120,right:120},children:[new Paragraph({children:[new TextRun({text:' ',font:FONT,size:17})]})]})]}));
       }
       return new Table({width:{size:W,type:WidthType.DXA},columnWidths:[W],rows});
     }
