@@ -184,7 +184,7 @@ async function loadFromCloud(){
 
 async function saveToCloud(){
   setSyncStatus('syncing','Saving...');
-  const recap=document.getElementById('recapText').textContent;
+  const recap=document.getElementById('recapText').innerHTML;
   try{
     const r=await fetch('/.netlify/functions/data',{
       method:'POST',
@@ -318,7 +318,7 @@ document.addEventListener('keydown',e=>{
 });
 
 function exportDoc(){
-  const data={tasks:T,recap:document.getElementById('recapText').textContent,config:CFG};
+  const data={tasks:T,recap:document.getElementById('recapText').innerHTML,config:CFG};
   setSyncStatus('syncing','Generating...');
   fetch('/.netlify/functions/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
     .then(r=>{if(!r.ok)throw new Error('Export failed');return r.blob();})
