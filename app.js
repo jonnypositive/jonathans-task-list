@@ -537,7 +537,7 @@ async function generateRecap(){
   });
 
   const owner = CFG.ownerName || 'the user';
-  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a brief, practical 3-5 sentence daily recap in flowing prose (no bullet points) that highlights: what needs immediate attention today, any time-sensitive items, upcoming travel, and a general note on the workload. Reply with ONLY the recap text — no preamble.
+  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a brief, practical 3-5 sentence daily recap in flowing prose (no bullet points) that highlights: what needs immediate attention today, any time-sensitive items, upcoming travel, and a general note on the workload. Write each point as its own paragraph separated by a blank line. Reply with ONLY the recap text — no preamble, no bullet points.
 
 Task list:
 ${lines.join('\n')}`;
@@ -551,7 +551,13 @@ ${lines.join('\n')}`;
     const data = await resp.json();
     const text = data.text;
     if(text){
-      el.textContent = text;
+      // Render as paragraphs
+      const paras = text.split(/\n\n+/).map(p=>p.trim()).filter(p=>p.length>0);
+      if(paras.length > 1){
+        el.innerHTML = paras.map(p=>'<p style="margin:0 0 8px 0">'+p.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>').join('');
+      } else {
+        el.textContent = text;
+      }
       scheduleSave();
     } else {
       el.textContent = 'Unable to generate recap — please try again.';
@@ -575,6 +581,8 @@ async function init(){
   await loadFromCloud();
   sf('all');
   render();
+  // Auto-generate recap in background after load
+  setTimeout(generateRecap, 1500);
 }
 
 init();
