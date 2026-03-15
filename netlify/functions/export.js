@@ -20,7 +20,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { tasks: T, recap } = JSON.parse(event.body);
+    const { tasks: T, recap, config } = JSON.parse(event.body);
 
     const TZ = 'America/Denver';
     const NOW = new Date();
@@ -269,7 +269,9 @@ exports.handler = async (event) => {
     }));
     children.push(sp(90));
 
-    addSec(children,buildDual('Client Dates',T.calls||[],false,true,'DBR \u2014 '+getDBRDate(),T.dbr||[],true,false));
+    const callsLabel=(config&&config.sections&&config.sections.calls&&config.sections.calls.label)||'In-House Clients and Groups';
+    const dbrLabel=(config&&config.sections&&config.sections.dbr&&config.sections.dbr.label)||'DBR';
+    addSec(children,buildDual(callsLabel,T.calls||[],false,true,dbrLabel+' \u2014 '+getDBRDate(),T.dbr||[],true,false));
     addSec(children,buildSplit('Proposals','Prep',T.proposals_prep||[],'Out',T.proposals_out||[],true));
     addSec(children,buildSplit('Contracts','Prep',T.contracts_prep||[],'Out',T.contracts_out||[],true));
     addSec(children,buildTwoCol('Tasks',T.tasks||[],false,false));
