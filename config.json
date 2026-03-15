@@ -1,0 +1,39 @@
+{
+  "ownerName": "Jonathan",
+  "reportTitle": "Daily Task List",
+  "logo": "hotel_polaris_logo_white.png",
+  "logoBackground": "#1F3864",
+  "timezone": "America/Denver",
+
+  "sections": {
+    "calls":          { "enabled": true,  "label": "Client Dates",                "hasArrival": false, "hasPerp": false, "hasDateRange": true  },
+    "dbr":            { "enabled": true,  "label": "DBR",                         "hasArrival": true,  "hasPerp": false, "hasDateRange": false },
+    "proposals_prep": { "enabled": true,  "label": "Proposals: Prep",             "hasArrival": true,  "hasPerp": false, "hasDateRange": false },
+    "proposals_out":  { "enabled": true,  "label": "Proposals: Out",              "hasArrival": true,  "hasPerp": false, "hasDateRange": false },
+    "contracts_prep": { "enabled": true,  "label": "Contracts: Prep",             "hasArrival": true,  "hasPerp": false, "hasDateRange": false },
+    "contracts_out":  { "enabled": true,  "label": "Contracts: Out",              "hasArrival": true,  "hasPerp": false, "hasDateRange": false },
+    "tasks":          { "enabled": true,  "label": "Tasks",                       "hasArrival": false, "hasPerp": true,  "hasDateRange": false },
+    "prospecting":    { "enabled": true,  "label": "Prospecting",                 "hasArrival": false, "hasPerp": false, "hasDateRange": false },
+    "culture":        { "enabled": true,  "label": "Culture Club",                "hasArrival": false, "hasPerp": false, "hasDateRange": false },
+    "affinity":       { "enabled": true,  "label": "Sales Manager Affinity",      "hasArrival": false, "hasPerp": false, "hasDateRange": false },
+    "travel":         { "enabled": true,  "label": "Travel",                      "hasArrival": false, "hasPerp": false, "hasDateRange": true  }
+  },
+
+  "meetings": {
+    "culture": {
+      "anchor": "2026-03-18",
+      "time": "2:30 PM",
+      "intervalDays": 14
+    },
+    "affinity": {
+      "anchor": "2026-03-26",
+      "time": "11:00 AM",
+      "intervalDays": 28
+    }
+  },
+
+  "dbr": {
+    "enabled": true,
+    "afterHour": 9
+  }
+}
