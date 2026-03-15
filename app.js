@@ -17,7 +17,7 @@ async function loadConfig() {
 // ── Section metadata (from config) ───────────────────────────────────────────
 function getSM() {
   const defaults = {
-    calls:          {label:'Client Dates',           hasArrival:false,hasPerp:false,hasDateRange:true},
+    calls:          {label:'In-House Clients and Groups', hasArrival:false,hasPerp:false,hasDateRange:true},
     dbr:            {label:'DBR',                    hasArrival:true, hasPerp:false,hasDateRange:false},
     proposals_prep: {label:'Proposals: Prep',        hasArrival:true, hasPerp:false,hasDateRange:false},
     proposals_out:  {label:'Proposals: Out',         hasArrival:true, hasPerp:false,hasDateRange:false},
@@ -537,7 +537,8 @@ async function generateRecap(){
   });
 
   const owner = CFG.ownerName || 'the user';
-  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a brief, practical 3-5 sentence daily recap in flowing prose (no bullet points) that highlights: what needs immediate attention today, any time-sensitive items, upcoming travel, and a general note on the workload. Write each point as its own paragraph separated by a blank line. Reply with ONLY the recap text — no preamble, no bullet points.
+  const sectionNotes = "Note: In-House Clients and Groups refers to clients who are physically staying at or visiting the hotel — this is NOT travel for the report owner, do not treat these dates as travel items.";
+  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a brief, practical 3-5 sentence daily recap in flowing prose (no bullet points) that highlights: what needs immediate attention today, any time-sensitive items, upcoming travel, and a general note on the workload. Write each point as its own paragraph separated by a blank line. Reply with ONLY the recap text — no preamble, no bullet points. ${sectionNotes}
 
 Task list:
 ${lines.join('\n')}`;
