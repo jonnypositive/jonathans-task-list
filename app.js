@@ -515,6 +515,8 @@ async function generateRecap(){
   btn.disabled = true;
   btn.classList.add('loading');
   btn.textContent = 'Generating...';
+  // Clear previous recap and show loading placeholder
+  el.innerHTML = '<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
 
   // Build task summary from current data
   const tz = CFG.timezone || 'America/Denver';
@@ -590,8 +592,12 @@ async function init(){
   await loadFromCloud();
   sf('all');
   render();
-  // Auto-generate recap in background after load
-  setTimeout(generateRecap, 1500);
+  // Clear stale recap and auto-generate fresh one after load
+  setTimeout(()=>{
+    const recapEl=document.getElementById('recapText');
+    if(recapEl)recapEl.innerHTML='<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
+    generateRecap();
+  }, 1500);
 }
 
 init();
