@@ -203,14 +203,29 @@ exports.handler = async (event) => {
 
     function buildRecap(recapText){
       if(!recapText||!recapText.trim())return null;
-      // Strip HTML tags (app stores recap as innerHTML with <p> tags)
-      const stripped=recapText.replace(/<p[^>]*>/gi,'\n\n').replace(/<\/p>/gi,'').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').trim();
-      // Try double newlines first, then single newlines
-      let paragraphs=stripped.split(/\n\n+/).map(p=>p.trim()).filter(p=>p.length>0);
-      if(paragraphs.length===1){paragraphs=stripped.split(/\n/).map(p=>p.trim()).filter(p=>p.length>0);}
-      // If still one block, split on sentence boundaries (. ! ?) followed by space+capital letter
-      if(paragraphs.length===1){
-        paragraphs=stripped.split(/(?<=[.!?])\s+(?=[A-Z])/).map(p=>p.trim()).filter(p=>p.length>0);
+      let paragraphs=[];
+      // First: try to extract paragraphs from HTML <p> tags (web app format)
+      const pTagMatch=recapText.match(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+      if(pTagMatch&&pTagMatch.length>1){
+        paragraphs=pTagMatch.map(p=>p.replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').trim()).filter(p=>p.length>0);
+      }
+      // Second: try plain text with double newlines
+      if(paragraphs.length<=1){
+        const stripped=recapText.replace(/<[^>]+>/g,' ').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+        const byDouble=stripped.split(/\n\n+/).map(p=>p.trim()).filter(p=>p.length>0);
+        if(byDouble.length>1)paragraphs=byDouble;
+        else{
+          // Third: split on sentence boundaries using simple string matching
+          const sentences=[];let cur='';
+          for(let i=0;i<stripped.length;i++){
+            cur+=stripped[i];
+            if((stripped[i]==='.'||stripped[i]==='!'||stripped[i]==='?')&&i+2<stripped.length&&stripped[i+1]===' '&&stripped[i+2]===stripped[i+2].toUpperCase()&&stripped[i+2].match(/[A-Z]/)){
+              sentences.push(cur.trim());cur='';i++;
+            }
+          }
+          if(cur.trim())sentences.push(cur.trim());
+          paragraphs=sentences.length>1?sentences:[stripped];
+        }
       }
       const rows=[];
       rows.push(new TableRow({cantSplit:true,children:[hCell('Daily Recap',W)]}));
