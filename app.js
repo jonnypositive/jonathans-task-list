@@ -1,33 +1,32 @@
-// ── Load config then boot ─────────────────────────────────────────────────────
+// ── Load config then boot ──────────────────────────────────────────────────
 let CFG = {};
-
 async function loadConfig() {
-  try {
-    const r = await fetch('/config.json');
-    if (r.ok) CFG = await r.json();
-  } catch(e) {}
-  // Defaults if config missing
-  if (!CFG.ownerName) CFG.ownerName = 'Jonathan';
+  try { const r = await fetch('/config.json'); if (r.ok) CFG = await r.json(); } catch(e) {}
+  if (!CFG.ownerName)   CFG.ownerName   = 'Jonathan';
   if (!CFG.reportTitle) CFG.reportTitle = 'Daily Task List';
-  if (!CFG.timezone) CFG.timezone = 'America/Denver';
-  if (!CFG.sections) CFG.sections = {};
-  if (!CFG.meetings) CFG.meetings = {};
+  if (!CFG.timezone)    CFG.timezone    = 'America/Denver';
+  if (!CFG.sections)    CFG.sections    = {};
+  if (!CFG.meetings)    CFG.meetings    = {};
 }
 
-// ── Section metadata (from config) ───────────────────────────────────────────
+// ── Section metadata ───────────────────────────────────────────────────────
+// CHANGE 2: "calls" label → "Hot Dates and In-House Groups", hasTime:true
+// CHANGE 5: "notes" section removed entirely
 function getSM() {
   const defaults = {
-    calls:          {label:'In-House Clients and Groups', hasArrival:false,hasPerp:false,hasDateRange:true},
-    dbr:            {label:'DBR',                    hasArrival:true, hasPerp:false,hasDateRange:false},
-    proposals_prep: {label:'Proposals: Prep',        hasArrival:true, hasPerp:false,hasDateRange:false},
-    proposals_out:  {label:'Proposals: Out',         hasArrival:true, hasPerp:false,hasDateRange:false},
-    contracts_prep: {label:'Contracts: Prep',        hasArrival:true, hasPerp:false,hasDateRange:false},
-    contracts_out:  {label:'Contracts: Out',         hasArrival:true, hasPerp:false,hasDateRange:false},
-    tasks:          {label:'Tasks',                  hasArrival:false,hasPerp:true, hasDateRange:false},
-    prospecting:    {label:'Prospecting',            hasArrival:false,hasPerp:false,hasDateRange:false},
-    culture:        {label:'Culture Club',           hasArrival:false,hasPerp:false,hasDateRange:false},
-    affinity:       {label:'Sales Manager Affinity', hasArrival:false,hasPerp:false,hasDateRange:false},
-    travel:         {label:'Travel',                 hasArrival:false,hasPerp:false,hasDateRange:true},
+    calls:          {label:'Hot Dates and In-House Groups', hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:true},
+    dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    proposals_prep: {label:'Proposals: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    contracts_prep: {label:'Contracts: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
+    prospecting:    {label:'Prospecting',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    culture:        {label:'Culture Club',                  hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    affinity:       {label:'Sales Manager Affinity',        hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    travel:         {label:'Travel',                        hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:false},
+    daily_recap:    {label:'Daily Recap',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    // NOTE: "notes" section intentionally removed (Change #5)
   };
   const sm = {};
   Object.keys(defaults).forEach(id => {
@@ -35,10 +34,12 @@ function getSM() {
     const cfg = (CFG.sections && CFG.sections[id]) || {};
     if (cfg.enabled === false) return;
     sm[id] = {
-      label: cfg.label || def.label,
-      arr:   cfg.hasArrival !== undefined ? cfg.hasArrival : def.hasArrival,
-      perp:  cfg.hasPerp    !== undefined ? cfg.hasPerp    : def.hasPerp,
-      dr:    cfg.hasDateRange !== undefined ? cfg.hasDateRange : def.hasDateRange,
+      label:    cfg.label      || def.label,
+      arr:      cfg.hasArrival !== undefined ? cfg.hasArrival : def.hasArrival,
+      perp:     cfg.hasPerp    !== undefined ? cfg.hasPerp    : def.hasPerp,
+      dr:       cfg.hasDateRange !== undefined ? cfg.hasDateRange : def.hasDateRange,
+      time:     def.hasTime    || false,
+      dueDate:  def.hasDueDate || false,
     };
   });
   return sm;
@@ -47,21 +48,21 @@ function getSM() {
 let SM = {};
 let AIDS = [];
 
-// ── Default data ──────────────────────────────────────────────────────────────
+// ── Default data ───────────────────────────────────────────────────────────
 const INIT={
   calls:[{text:'Linda Jones In House',done:false,priority:'none',travelStart:'2026-03-23',travelEnd:'2026-03-26'}],
   dbr:[{text:'Barr Brands',done:false,priority:'high',arrival:'2026-06-01'}],
-  proposals_prep:[{text:'PBR \u2013 Pending',done:false,priority:'none'},{text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'}],
+  proposals_prep:[{text:'PBR – Pending',done:false,priority:'none'},{text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'}],
   proposals_out:[
     {text:'USAFA Captains',done:false,priority:'none',arrival:'2026-05-29'},
-    {text:'US Figure Skating \u2013 Kevin Handling',done:false,priority:'none',arrival:'2026-07-12'},
+    {text:'US Figure Skating – Kevin Handling',done:false,priority:'none',arrival:'2026-07-12'},
     {text:'Sublime Summer Retreat',done:false,priority:'none',arrival:'2026-07-19'},
     {text:'RMAC Advisory Meetings (2026-2028)',done:false,priority:'none',arrival:'2026-07-26'},
     {text:'James Garner Party (Allison Krauss)',done:false,priority:'none',arrival:'2026-08-13'},
     {text:'New Mexico United/USL',done:false,priority:'none',arrival:'2026-09-18'},
     {text:'Eastern Washington W Soccer',done:false,priority:'none',arrival:'2026-09-19'},
     {text:'Purina',done:false,priority:'none',arrival:'2026-10-01'},
-    {text:'RMAC 2026 Fall Meeting \u2013 Cvent',done:false,priority:'none',arrival:'2026-10-05'},
+    {text:'RMAC 2026 Fall Meeting – Cvent',done:false,priority:'none',arrival:'2026-10-05'},
     {text:'UCONN Football Team',done:false,priority:'none',arrival:'2026-10-30'},
     {text:"Ziggi's 2027 Franchise Conference",done:false,priority:'none',arrival:'2027-09-12'},
     {text:'LeMans',done:false,priority:'none',arrival:'2027-09-29'},
@@ -86,7 +87,7 @@ const INIT={
     {text:'Update Decision Due Dates (04/01/2026)',done:false,priority:'none',perpetual:true},
     {text:'Turnovers',done:false,priority:'none',perpetual:true},
     {text:'Expense Report: MIC On-Site Expenses 3/13',done:false,priority:'high'},
-    {text:'PBR \u2013 USAFA Football Contract Status',done:false,priority:'high'},
+    {text:'PBR – USAFA Football Contract Status',done:false,priority:'high'},
     {text:'Yoga on the Range Marketing Plan',done:false,priority:'high'},
     {text:'Send Follow Up Emails to MIC Panelists',done:false,priority:'high'},
     {text:'Send email to Leslie and Jenni Garrity re: MIC Session',done:false,priority:'high'},
@@ -104,21 +105,21 @@ const INIT={
     {text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'},
   ],
   prospecting:[
-    {text:'Marc Goodman \u2013 Politis Specialty Foods',done:false,priority:'high'},
-    {text:'Sue Dorsey \u2013 Gates Foundation',done:false,priority:'high'},
+    {text:'Marc Goodman – Politis Specialty Foods',done:false,priority:'high'},
+    {text:'Sue Dorsey – Gates Foundation',done:false,priority:'high'},
     {text:'Yoga Retreat Synergy Leads',done:false,priority:'none'},
-    {text:'F&B \u2013 Shamrock Foods',done:false,priority:'none'},
-    {text:'F&B \u2013 What Chefs Want',done:false,priority:'none'},
-    {text:'F&B \u2013 Swire Coke',done:false,priority:'none'},
-    {text:'F&B \u2013 Southern Wine & Spirits',done:false,priority:'none'},
-    {text:'F&B \u2013 Breakthru Beverage',done:false,priority:'none'},
-    {text:'F&B \u2013 Republic National Distributing',done:false,priority:'none'},
+    {text:'F&B – Shamrock Foods',done:false,priority:'none'},
+    {text:'F&B – What Chefs Want',done:false,priority:'none'},
+    {text:'F&B – Swire Coke',done:false,priority:'none'},
+    {text:'F&B – Southern Wine & Spirits',done:false,priority:'none'},
+    {text:'F&B – Breakthru Beverage',done:false,priority:'none'},
+    {text:'F&B – Republic National Distributing',done:false,priority:'none'},
     {text:'North Dakota State Football',done:false,priority:'none'},
     {text:'Kroger',done:false,priority:'none'},
     {text:'Kim Bilsky',done:false,priority:'none'},
     {text:'Amy McKenny',done:false,priority:'none'},
     {text:'USAFA Summer Camps',done:false,priority:'none'},
-    {text:'AHA Hockey \u2013 2027 Teams',done:false,priority:'none'},
+    {text:'AHA Hockey – 2027 Teams',done:false,priority:'none'},
     {text:'Knowland Prospecting',done:false,priority:'none'},
     {text:'USA Water Polo',done:false,priority:'none'},
     {text:'Denver Citywides Leads',done:false,priority:'none'},
@@ -143,45 +144,50 @@ const INIT={
     {text:'Connect Fall Marketplace Tampa',done:false,priority:'none',travelStart:'2026-08-24',travelEnd:'2026-08-26'},
     {text:'Beyond Dallas and Houston',done:false,priority:'none',travelStart:'2026-09-07',travelEnd:'2026-09-10'},
   ],
-  recap:'Your most pressing items today are the Expense Report from MIC On-Site, the follow-up emails to MIC panelists, the email to Leslie and Jenni Garrity regarding the MIC session, the Yoga on the Range Marketing Plan, and the PBR/USAFA Football Contract status.',
+  daily_recap:'Your most pressing items today are the Expense Report from MIC On-Site, the follow-up emails to MIC panelists, the email to Leslie and Jenni Garrity regarding the MIC session, the Yoga on the Range Marketing Plan, and the PBR/USAFA Football Contract status.',
 };
 
-// ── State ─────────────────────────────────────────────────────────────────────
-let T={},filt='all',ec=null,openDP=null;
-let dragSrc=null,dragIdx=null,dropTargetIdx=null;
+// ── State ──────────────────────────────────────────────────────────────────
+let T={}, filt='all', ec=null, openDP=null, openNotes=null;
+let dragSrc=null, dragIdx=null, dropTargetIdx=null;
 let syncTimer=null;
 
-// ── Sync helpers ──────────────────────────────────────────────────────────────
+// ── Sync helpers ───────────────────────────────────────────────────────────
 function setSyncStatus(state,msg){
   const el=document.getElementById('syncStatus');
   const msgEl=document.getElementById('syncMsg');
   el.className='sync-status '+state;
   msgEl.textContent=msg;
 }
-
 async function loadFromCloud(){
   setSyncStatus('syncing','Loading...');
   try{
     const r=await fetch('/.netlify/functions/data?action=load');
     if(r.ok){
       const d=await r.json();
-      if(d&&d.tasks){
+      // Only use cloud data if it has tasks AND no error field
+      if(d&&d.tasks&&!d.error){
         T=d.tasks;
         AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
-        if(d.recap)document.getElementById('recapText').textContent=d.recap;
+        if(d.recap)document.getElementById('recapText').innerHTML=d.recap;
         setSyncStatus('saved','Synced');
         return;
       }
     }
   }catch(e){}
+  // Fall back to localStorage
   try{
     const s=localStorage.getItem('jdtl_v5');
-    if(s){T=JSON.parse(s);AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});}
-    else T=JSON.parse(JSON.stringify(INIT));
-  }catch(e){T=JSON.parse(JSON.stringify(INIT));}
-  setSyncStatus('error','Offline — local only');
+    if(s){
+      T=JSON.parse(s);
+      AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
+      setSyncStatus('saved','Loaded from local cache');
+      return;
+    }
+  }catch(e){}
+  T=JSON.parse(JSON.stringify(INIT));
+  setSyncStatus('error','Using default data');
 }
-
 async function saveToCloud(){
   setSyncStatus('syncing','Saving...');
   const recap=document.getElementById('recapText').innerHTML;
@@ -196,14 +202,13 @@ async function saveToCloud(){
   localStorage.setItem('jdtl_v5',JSON.stringify(T));
   setSyncStatus('error','Cloud unavailable — saved locally');
 }
-
 function scheduleSave(){
   clearTimeout(syncTimer);
   setSyncStatus('syncing','Saving...');
   syncTimer=setTimeout(saveToCloud,1200);
 }
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
+// ── Date helpers ───────────────────────────────────────────────────────────
 function srt(a){
   const p=a.filter(t=>t.perpetual),h=a.filter(t=>!t.perpetual&&t.text&&t.priority==='high'&&!t.done);
   const r=a.filter(t=>!t.perpetual&&t.text&&!(t.priority==='high'&&!t.done)),b=a.filter(t=>!t.perpetual&&!t.text);
@@ -211,7 +216,6 @@ function srt(a){
 }
 function srtDR(a){const h=a.filter(t=>t.text&&t.priority==='high'&&!t.done),r=a.filter(t=>t.text&&!(t.priority==='high'&&!t.done));return[...h,...r];}
 function ss(sid,a){return SM[sid]&&SM[sid].dr?srtDR(a):srt(a);}
-
 function efy(s){
   if(!s)return s;const p=s.split('-');if(p.length!==3)return s;
   let y=parseInt(p[0],10);if(isNaN(y))return s;
@@ -223,19 +227,17 @@ function fmt(s){
   const y=parseInt(p[0],10),m=parseInt(p[1],10),d=parseInt(p[2],10);
   if(isNaN(y)||isNaN(m)||isNaN(d))return s;return m+'/'+d+'/'+String(y).slice(-2);
 }
-
 function getMeetingDate(key){
-  const m = CFG.meetings && CFG.meetings[key];
-  if (!m) return '';
-  const anchor = new Date(m.anchor + 'T00:00:00');
-  const tz = CFG.timezone || 'America/Denver';
-  const nowMT = new Date(new Date().toLocaleString('en-US',{timeZone:tz}));
-  let next = new Date(anchor);
-  while(next <= nowMT) next.setDate(next.getDate() + (m.intervalDays || 14));
-  const dateStr = next.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:tz}).replace(/,\s+\d{4}$/,'');
-  return dateStr + ' @ ' + m.time;
+  const m=CFG.meetings&&CFG.meetings[key];
+  if(!m)return '';
+  const anchor=new Date(m.anchor+'T00:00:00');
+  const tz=CFG.timezone||'America/Denver';
+  const nowMT=new Date(new Date().toLocaleString('en-US',{timeZone:tz}));
+  let next=new Date(anchor);
+  while(next<=nowMT)next.setDate(next.getDate()+(m.intervalDays||14));
+  const dateStr=next.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:tz}).replace(/,\s+\d{4}$/,'');
+  return dateStr+' @ '+m.time;
 }
-
 function dbrDate(){
   const tz=CFG.timezone||'America/Denver';
   const n=new Date(),day=n.getDay(),h=n.getHours();let d=new Date(n);
@@ -244,14 +246,13 @@ function dbrDate(){
   return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',timeZone:tz});
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────────
+// ── Actions ────────────────────────────────────────────────────────────────
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function cyc(sid,idx){const o=['none','high','med','low'],c=T[sid][idx].priority||'none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
-
 function tDP(sid,idx){const k=sid+'_'+idx;openDP=(openDP===k)?null:k;render();if(openDP){setTimeout(()=>{const d=document.getElementById('da_'+openDP);if(d)d.focus();},80);}}
 function cDate(sid,idx){const k=sid+'_'+idx,dp=document.getElementById('da_'+k);if(!dp)return;T[sid][idx].arrival=dp.value?efy(dp.value):undefined;scheduleSave();openDP=null;render();}
 function clDate(sid,idx){T[sid][idx].arrival=undefined;scheduleSave();openDP=null;render();}
@@ -263,6 +264,20 @@ function cDR(sid,idx){
   scheduleSave();openDP=null;render();
 }
 function clDR(sid,idx){T[sid][idx].travelStart=undefined;T[sid][idx].travelEnd=undefined;scheduleSave();openDP=null;render();}
+
+// CHANGE 6: Toggle inline notes panel
+function toggleNotes(sid,idx){
+  const k=sid+'_'+idx;
+  openNotes=(openNotes===k)?null:k;
+  render();
+  if(openNotes){setTimeout(()=>{const ta=document.getElementById('nta_'+k);if(ta)ta.focus();},80);}
+}
+function saveNotes(sid,idx){
+  const k=sid+'_'+idx,ta=document.getElementById('nta_'+k);
+  if(ta){T[sid][idx].notes=ta.value;scheduleSave();}
+  openNotes=null;render();
+}
+function closeNotes(){openNotes=null;render();}
 
 function startEdit(sid,idx,row){
   if(ec)commitEdit();ec={sid,idx};
@@ -279,14 +294,21 @@ function commitEdit(){
   ec=null;render();
 }
 
+// CHANGE 1: openAdd now accepts a pre-selected section and opens the modal
 function openAdd(pre){
   document.getElementById('mSec').value=pre||'';
-  ['mtxt','marr','mts','mte'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('mpri').value='none';document.getElementById('mperp').checked=false;
-  document.getElementById('mFields').style.display='none';document.getElementById('mOK').style.display='none';
+  ['mtxt','marr','mts','mte','mnotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const mtime=document.getElementById('mtime');if(mtime)mtime.value='';
+  const mduedate=document.getElementById('mduedate');if(mduedate)mduedate.value='';
+  document.getElementById('mpri').value='none';
+  document.getElementById('mperp').checked=false;
+  document.getElementById('mFields').style.display='none';
+  document.getElementById('mOK').style.display='none';
+  document.getElementById('modalTitle').textContent='Add task';
   document.getElementById('modalWrap').style.display='block';
   if(pre)onSecChange();else setTimeout(()=>document.getElementById('mSec').focus(),50);
 }
+
 function onSecChange(){
   const sid=document.getElementById('mSec').value,fields=document.getElementById('mFields'),ok=document.getElementById('mOK');
   if(!sid){fields.style.display='none';ok.style.display='none';return;}
@@ -295,25 +317,49 @@ function onSecChange(){
   document.getElementById('mPerpRow').style.display=m.perp?'flex':'none';
   document.getElementById('mArrRow').style.display=m.arr?'block':'none';
   document.getElementById('mDRRow').style.display=m.dr?'block':'none';
+  // CHANGE 2: show time field for hot dates (calls section)
+  document.getElementById('mTimeRow').style.display=m.time?'block':'none';
+  // CHANGE 7: show due date for tasks section
+  document.getElementById('mDueDateRow').style.display=m.dueDate?'block':'none';
   fields.style.display='block';ok.style.display='inline-block';
+  // CHANGE 1: update modal title to section name
+  document.getElementById('modalTitle').textContent='Add to: '+m.label;
   setTimeout(()=>document.getElementById('mtxt').focus(),50);
 }
+
 function closeM(){document.getElementById('modalWrap').style.display='none';}
 function handleOverlayClick(e){if(e.target.classList.contains('movl'))closeM();}
+
 function confirmM(){
   const sid=document.getElementById('mSec').value,txt=document.getElementById('mtxt').value.trim();
   if(!sid||!txt)return;
   const pri=document.getElementById('mpri').value,perp=document.getElementById('mperp').checked;
   const arr=document.getElementById('marr').value,ts=document.getElementById('mts').value,te=document.getElementById('mte').value;
+  const mtime=document.getElementById('mtime');
+  const mduedate=document.getElementById('mduedate');
+  const mnotes=document.getElementById('mnotes');
   if(!T[sid])T[sid]=[];
   const task={text:txt,done:false,priority:pri};
-  if(perp)task.perpetual=true;if(arr)task.arrival=efy(arr);if(ts)task.travelStart=efy(ts);if(te)task.travelEnd=efy(te);
+  if(perp)task.perpetual=true;
+  if(arr)task.arrival=efy(arr);
+  if(ts)task.travelStart=efy(ts);
+  if(te)task.travelEnd=efy(te);
+  // CHANGE 2: save time for hot dates
+  if(mtime&&mtime.value){
+    const [h,m]=mtime.value.split(':');const hh=parseInt(h);
+    task.time=(hh===0?12:hh>12?hh-12:hh)+':'+m+(hh>=12?'pm':'am');
+  }
+  // CHANGE 7: save due date for tasks
+  if(mduedate&&mduedate.value)task.dueDate=efy(mduedate.value);
+  // CHANGE 6: save notes
+  if(mnotes&&mnotes.value.trim())task.notes=mnotes.value.trim();
   T[sid].push(task);T[sid]=ss(sid,T[sid]);scheduleSave();closeM();render();
 }
+
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){closeM();if(openDP){openDP=null;render();}}
+  if(e.key==='Escape'){closeM();if(openDP){openDP=null;render();}if(openNotes){openNotes=null;render();}}
   if(e.key==='Enter'&&document.getElementById('modalWrap').style.display==='block'){
-    if(document.activeElement&&document.activeElement.tagName!=='SELECT'&&document.activeElement.type!=='date')confirmM();
+    if(document.activeElement&&document.activeElement.tagName!=='SELECT'&&document.activeElement.type!=='date'&&document.activeElement.tagName!=='TEXTAREA')confirmM();
   }
 });
 
@@ -340,7 +386,7 @@ function exportDoc(){
     .catch(()=>setSyncStatus('error','Export failed'));
 }
 
-// ── Drag and drop ─────────────────────────────────────────────────────────────
+// ── Drag and drop ──────────────────────────────────────────────────────────
 function onDS(e,sid,idx){dragSrc=sid;dragIdx=idx;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',sid+'|'+idx);setTimeout(()=>{const el=document.querySelector('[data-drag="'+sid+'_'+idx+'"]');if(el)el.classList.add('dragging');},0);}
 function onDE(){document.querySelectorAll('.dragging,.drag-over,.drop-above').forEach(el=>el.classList.remove('dragging','drag-over','drop-above'));dropTargetIdx=null;}
 function onDO(e,l){e.preventDefault();e.dataTransfer.dropEffect='move';document.querySelectorAll('.drag-over').forEach(el=>{if(el!==l)el.classList.remove('drag-over');});l.classList.add('drag-over');}
@@ -366,8 +412,8 @@ function onDrop(e,destSid,l){
   dragSrc=null;dragIdx=null;dropTargetIdx=null;scheduleSave();render();
 }
 
-// ── Render helpers ────────────────────────────────────────────────────────────
-function pl(p){return{high:'High',med:'Med',low:'Low',none:'\u2013'}[p]||'\u2013';}
+// ── Render helpers ─────────────────────────────────────────────────────────
+function pl(p){return{high:'High',med:'Med',low:'Low',none:'–'}[p]||'–';}
 function bc(p){return{high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn';}
 
 function rows(sid,arr){
@@ -382,30 +428,58 @@ function rows(sid,arr){
     if(isHi&&!sh&&filt!=='done'){h+='<div class="divrow hi">High Priority</div>';sh=true;}
     if(!ip&&!isHi&&t.text&&!st&&filt!=='done'){h+='<div class="divrow">Today</div>';st=true;}
     const dc=t.done?' done':'',prc=ip?' prow':isHi?' hirow':'';
-    const pb=ip?'<span class="perpb">\u221e</span>':'';
-    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk);
+    const pb=ip?'<span class="perpb">∞</span>':'';
+    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk),onk=(openNotes===k);
     let db='';
-    if(m.arr)db=`<span class="dbadge${t.arrival?' set':''}" onclick="tDP('${sid}',${ri})">${t.arrival?fmt(t.arrival):'+ date'}</span>`;
-    if(m.dr){const has=t.travelStart||t.travelEnd,lbl=has?((t.travelStart?fmt(t.travelStart):'?')+'\u2013'+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;}
-    const cc=ip?'chk pc':`chk${t.done?' on':''}`,cx=ip?'\u221e':t.done?'\u2713':'';
+    // CHANGE 3: show "Decision Due Date" label for proposals_out arrival dates
+    const arrLabel = (sid==='proposals_out') ? 'Decision Due Date' : '+ date';
+    const arrSetLabel = (sid==='proposals_out') ? fmt(t.arrival) : fmt(t.arrival);
+    if(m.arr)db=`<span class="dbadge${t.arrival?' set':''}" onclick="tDP('${sid}',${ri})">${t.arrival?arrSetLabel:arrLabel}</span>`;
+    if(m.dr){
+      const has=t.travelStart||t.travelEnd;
+      let lbl=has?((t.travelStart?fmt(t.travelStart):'?')+'–'+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';
+      db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;
+    }
+    // CHANGE 2: show time badge if present (hot dates / calls section)
+    let timeBadge='';
+    if(t.time)timeBadge=`<span class="dbadge set" style="cursor:default">@ ${t.time}</span>`;
+    // CHANGE 7: show due date badge for tasks
+    let dueBadge='';
+    if(m.dueDate&&t.dueDate){
+      const today=new Date();today.setHours(0,0,0,0);
+      const due=new Date(t.dueDate+'T00:00:00');
+      const isOver=due<today,isToday=due.getTime()===today.getTime();
+      const dueStyle=isOver?'background:#fdecea;color:#c0392b;border-color:#e8b4b0;':isToday?'background:#fef9ec;color:#b7770d;border-color:#e8c97a;':'';
+      dueBadge=`<span class="dbadge set" style="cursor:default;${dueStyle}">Due ${fmt(t.dueDate)}</span>`;
+    }
+    // CHANGE 6: notes badge — shows if notes exist
+    const hasNotes=t.notes&&t.notes.trim().length>0;
+    const notesBadge=`<span class="notes-badge" onclick="toggleNotes('${sid}',${ri})">${hasNotes?'Notes ▾':'+ Notes'}</span>`;
+    const cc=ip?'chk pc':`chk${t.done?' on':''}`,cx=ip?'∞':t.done?'✓':'';
     const ts=t.done?'text-decoration:line-through;color:#aaa;':'';
     const tx=t.text||'<em style="opacity:.3">empty</em>';
     const drag=t.text?'draggable="true"':'';
     h+=`<div class="trow${dc}${prc}" data-drag="${k}" ${drag} ondragstart="onDS(event,'${sid}',${ri})" ondragend="onDE()" ondragover="onRDO(event,'${sid}',${ri})" ondragleave="onRDL(event,'${sid}',${ri})">
-      <div class="dh"><span></span><span></span><span></span></div>
-      <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
-      <span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
-      ${pb}${db}<span class="pb ${bc(t.priority||'none')}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none')}</span>
-      <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
-    </div>`;
-    if(oa)h+=`<div class="dprow"><span class="dplbl">Arrival:</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+  <div class="dh"><span></span><span></span><span></span></div>
+  <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
+  <span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
+  ${pb}${timeBadge}${dueBadge}${db}${notesBadge}<span class="pb ${bc(t.priority||'none')}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none')}</span>
+  <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
+</div>`;
+    // Arrival date picker row
+    if(oa)h+=`<div class="dprow"><span class="dplbl">${sid==='proposals_out'?'Decision Due:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    // Travel date range picker row
     if(odr)h+=`<div class="dprow"><span class="dplbl">Start:</span><input type="date" id="ds_${sid}_${ri}" value="${efy(t.travelStart||'')}"/><span class="dplbl">End:</span><input type="date" id="de_${sid}_${ri}" value="${efy(t.travelEnd||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDR('${sid}',${ri})">Set</button>${(t.travelStart||t.travelEnd)?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDR('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    // CHANGE 6: inline notes panel
+    if(onk)h+=`<div class="notes-row"><textarea id="nta_${k}" placeholder="Add notes for this task...">${(t.notes||'').replace(/</g,'&lt;')}</textarea><div class="notes-row-footer"><button onclick="closeNotes()">Cancel</button><button class="bp" style="font-size:11px;padding:3px 10px" onclick="saveNotes('${sid}',${ri})">Save</button></div></div>`;
   });
   return`<div class="tlist" ${dz}>${h}</div>`;
 }
 
-function sec(cls,title,sid,sub){
-  return`<div class="sec ${cls}"><div class="shead"><span class="stitle">${title}${sub?`<span class="ssub">&mdash; ${sub}</span>`:''}</span></div>${rows(sid,T[sid]||[])}</div>`;
+function sec(cls,title,sid,sub,onHeadClick){
+  const addBtn=`<button class="shead-add" onclick="event.stopPropagation();openAdd('${sid}')">+ Add</button>`;
+  const clickAttr=onHeadClick?`onclick="${onHeadClick}"`:`onclick="openAdd('${sid}')"`;
+  return`<div class="sec ${cls}"><div class="shead" ${clickAttr}><span class="stitle">${title}${sub?`<span class="ssub">&mdash; ${sub}</span>`:''}</span>${addBtn}</div>${rows(sid,T[sid]||[])}</div>`;
 }
 
 function prosCols(){
@@ -422,28 +496,30 @@ function prosCols(){
       if(isHi&&!sh&&filt!=='done'){h+='<div class="divrow hi">High Priority</div>';sh=true;}
       if(!isHi&&t.text&&!st&&filt!=='done'){h+='<div class="divrow">Today</div>';st=true;}
       const dc=t.done?' done':'',prc=isHi?' hirow':'';
-      const cc=`chk${t.done?' on':''}`,cx=t.done?'\u2713':'';
+      const cc=`chk${t.done?' on':''}`,cx=t.done?'✓':'';
       const ts=t.done?'text-decoration:line-through;color:#aaa;':'';
       const tx=t.text||'<em style="opacity:.3">empty</em>';
       const drag=t.text?'draggable="true"':'';
+      const hasNotes=t.notes&&t.notes.trim().length>0;
+      const notesBadge=`<span class="notes-badge" onclick="toggleNotes('prospecting',${ri})">${hasNotes?'Notes ▾':'+ Notes'}</span>`;
+      const onk=(openNotes===('prospecting_'+ri));
       h+=`<div class="trow${dc}${prc}" data-drag="prospecting_${ri}" ${drag} ondragstart="onDS(event,'prospecting',${ri})" ondragend="onDE()" ondragover="onRDO(event,'prospecting',${ri})" ondragleave="onRDL(event,'prospecting',${ri})">
-        <div class="dh"><span></span><span></span><span></span></div>
-        <div class="${cc}" onclick="tog('prospecting',${ri})">${cx}</div>
-        <span class="tspan" onclick="startEdit('prospecting',${ri},this.parentElement)" style="${ts}">${tx}</span>
-        <span class="pb ${bc(t.priority||'none')}" onclick="cyc('prospecting',${ri})">${pl(t.priority||'none')}</span>
-        <button class="delbtn" onclick="del('prospecting',${ri})">&times;</button>
-      </div>`;
+  <div class="dh"><span></span><span></span><span></span></div>
+  <div class="${cc}" onclick="tog('prospecting',${ri})">${cx}</div>
+  <span class="tspan" onclick="startEdit('prospecting',${ri},this.parentElement)" style="${ts}">${tx}</span>
+  ${notesBadge}<span class="pb ${bc(t.priority||'none')}" onclick="cyc('prospecting',${ri})">${pl(t.priority||'none')}</span>
+  <button class="delbtn" onclick="del('prospecting',${ri})">&times;</button>
+</div>`;
+      if(onk)h+=`<div class="notes-row"><textarea id="nta_prospecting_${ri}" placeholder="Add notes...">${(t.notes||'').replace(/</g,'&lt;')}</textarea><div class="notes-row-footer"><button onclick="closeNotes()">Cancel</button><button class="bp" style="font-size:11px;padding:3px 10px" onclick="saveNotes('prospecting',${ri})">Save</button></div></div>`;
     });
     return h;
   }
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'prospecting',this)"`;
-  return`<div class="proswrap"><div class="shead"><span class="stitle">${label}</span></div><div class="scols"><div class="scol"><div class="tlist" ${dz}>${cr(left)}</div></div><div class="scol"><div class="tlist" ${dz}>${cr(right)}</div></div></div></div>`;
+  return`<div class="proswrap"><div class="shead" onclick="openAdd('prospecting')"><span class="stitle">${label}</span><button class="shead-add" onclick="event.stopPropagation();openAdd('prospecting')">+ Add</button></div><div class="scols"><div class="scol"><div class="tlist" ${dz}>${cr(left)}</div></div><div class="scol"><div class="tlist" ${dz}>${cr(right)}</div></div></div></div>`;
 }
 
-// ── Build section dropdown from config ────────────────────────────────────────
 function buildSectionDropdown(){
   const sel=document.getElementById('mSec');
-  // Clear existing options except the placeholder
   while(sel.options.length>1)sel.remove(1);
   Object.entries(SM).forEach(([id,m])=>{
     const opt=document.createElement('option');
@@ -458,146 +534,104 @@ function render(){
   const now=new Date();
   document.getElementById('titleDate').textContent=
     now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz})+
-    ' \u00b7 '+
+    ' · '+
     now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:tz});
-
-  // Update page title
   document.title=(CFG.ownerName?CFG.ownerName+"'s ":'')+(CFG.reportTitle||'Daily Task List');
   document.querySelector('.hdr-left h1').textContent=(CFG.ownerName?CFG.ownerName+"'s ":'')+(CFG.reportTitle||'Daily Task List');
-
-  // Update logo
   const logoImg=document.querySelector('.hdr-logo img');
-  if(CFG.logo){
-    logoImg.src=CFG.logo;
-    logoImg.style.display='';
-    document.querySelector('.hdr').style.background=CFG.logoBackground||'#1F3864';
-  } else {
-    logoImg.style.display='none';
-  }
-
+  if(CFG.logo){logoImg.src=CFG.logo;logoImg.style.display='';document.querySelector('.hdr').style.background=CFG.logoBackground||'#1F3864';}
+  else{logoImg.style.display='';}
   let ta=0,td=0,th=0;
   AIDS.forEach(id=>(T[id]||[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(t.priority==='high'&&!t.done)th++;}}));
   document.getElementById('sT').textContent=ta;
   document.getElementById('sD').textContent=td;
   document.getElementById('sR').textContent=ta-td;
   document.getElementById('sH').textContent=th;
-
-  const cultureLabel=(SM.culture?SM.culture.label:'Culture Club')+' \u2014 '+getMeetingDate('culture');
-  const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' \u2014 '+getMeetingDate('affinity');
-
+  const cultureLabel=(SM.culture?SM.culture.label:'Culture Club')+' — '+getMeetingDate('culture');
+  const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' — '+getMeetingDate('affinity');
   g.innerHTML='';
-  if(SM.calls)  g.innerHTML+=sec('sec',SM.calls.label,'calls');
-  if(SM.dbr)    g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
+  // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
+  if(SM.calls)g.innerHTML+=sec('sec',SM.calls.label,'calls');
+  if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
   if(SM.proposals_prep||SM.proposals_out){
-    g.innerHTML+=`<div class="pwrap"><div class="shead"><span class="stitle">Proposals</span></div><div class="scols">
-      <div class="scol"><div class="scholdr"><span>${SM.proposals_prep?SM.proposals_prep.label:'Prep'}</span></div>${rows('proposals_prep',T.proposals_prep||[])}</div>
-      <div class="scol"><div class="scholdr"><span>${SM.proposals_out?SM.proposals_out.label:'Out'}</span></div>${rows('proposals_out',T.proposals_out||[])}</div>
+    g.innerHTML+=`<div class="pwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Proposals</span></div><div class="scols">
+      <div class="scol"><div class="scholdr"><span>${SM.proposals_prep?SM.proposals_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('proposals_prep')">+ Add</button></div>${rows('proposals_prep',T.proposals_prep||[])}</div>
+      <div class="scol"><div class="scholdr"><span>${SM.proposals_out?SM.proposals_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('proposals_out')">+ Add</button></div>${rows('proposals_out',T.proposals_out||[])}</div>
     </div></div>`;
   }
   if(SM.contracts_prep||SM.contracts_out){
-    g.innerHTML+=`<div class="cwrap"><div class="shead"><span class="stitle">Contracts</span></div><div class="scols">
-      <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
-      <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span></div>${rows('contracts_out',T.contracts_out||[])}</div>
+    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols">
+      <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('contracts_prep')">+ Add</button></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
+      <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('contracts_out')">+ Add</button></div>${rows('contracts_out',T.contracts_out||[])}</div>
     </div></div>`;
   }
-  if(SM.tasks)       g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
-  if(SM.prospecting) g.innerHTML+=prosCols();
-  if(SM.culture)     g.innerHTML+=sec('sec',cultureLabel,'culture');
-  if(SM.affinity)    g.innerHTML+=sec('sec',affinityLabel,'affinity');
-  if(SM.travel)      g.innerHTML+=sec('sfull',SM.travel.label,'travel');
+  // CHANGE 4: Tasks section — no page-break CSS anywhere
+  if(SM.tasks)g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
+  if(SM.prospecting)g.innerHTML+=prosCols();
+  if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
+  if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
+  if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
+  if(SM.daily_recap)g.innerHTML+=sec('sfull',SM.daily_recap.label,'daily_recap');
+  // CHANGE 5: no Notes section rendered
 }
 
-
-// ── AI Recap Generator ────────────────────────────────────────────────────────
+// ── AI Recap ───────────────────────────────────────────────────────────────
 async function generateRecap(){
-  const btn = document.getElementById('recapGenBtn');
-  const el  = document.getElementById('recapText');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.textContent = 'Generating...';
-  // Clear previous recap and show loading placeholder
-  el.innerHTML = '<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
-
-  // Build task summary from current data
-  const tz = CFG.timezone || 'America/Denver';
-  const today = new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz});
-  const lines = [];
-
-  AIDS.forEach(sid => {
-    const m = SM[sid]; if(!m) return;
-    const active = (T[sid]||[]).filter(t=>t.text&&!t.done);
-    if(!active.length) return;
+  const btn=document.getElementById('recapGenBtn');
+  const el=document.getElementById('recapText');
+  btn.disabled=true;btn.classList.add('loading');btn.textContent='Generating...';
+  el.innerHTML='<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
+  const tz=CFG.timezone||'America/Denver';
+  const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz});
+  const lines=[];
+  AIDS.forEach(sid=>{
+    const m=SM[sid];if(!m)return;
+    const active=(T[sid]||[]).filter(t=>t.text&&!t.done);
+    if(!active.length)return;
     lines.push(m.label+':');
     active.forEach(t=>{
-      let line='  - '+t.text;
-      if(t.priority==='high') line+=' [HIGH PRIORITY]';
-      if(t.perpetual)         line+=' [perpetual]';
-      if(t.arrival)           line+=' (arrival: '+fmt(t.arrival)+')';
-      if(t.travelStart||t.travelEnd) line+=' (travel: '+(t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')+')';
+      let line=' - '+t.text;
+      if(t.priority==='high')line+=' [HIGH PRIORITY]';
+      if(t.perpetual)line+=' [perpetual]';
+      if(t.arrival)line+=' (arrival: '+fmt(t.arrival)+')';
+      if(t.travelStart||t.travelEnd)line+=' (travel: '+(t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')+')';
       lines.push(line);
     });
   });
-
-  const owner = CFG.ownerName || 'the user';
-  const sectionNotes = "Note: In-House Clients and Groups refers to clients who are physically staying at or visiting the hotel — this is NOT travel for the report owner, do not treat these dates as travel items.";
-  const prompt = `Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a practical daily recap of 4-6 sentences highlighting: immediate priorities, time-sensitive items, upcoming travel, and overall workload. ${sectionNotes}
-
-Respond ONLY with a JSON object like this (no other text):
-{"paragraphs":["Sentence one.","Sentence two.","Sentence three.","Sentence four."]}
-
-Task list:
-${lines.join('\n')}`;
-
-  try {
-    const resp = await fetch('/.netlify/functions/recap',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prompt})
-    });
-    const data = await resp.json();
-    const text = data.text;
+  const owner=CFG.ownerName||'the user';
+  const sectionNotes="Note: Hot Dates and In-House Groups refers to clients who are physically staying at or visiting the hotel — this is NOT travel for the report owner, do not treat these dates as travel items.";
+  const prompt=`Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a practical daily recap of 4-6 sentences highlighting: immediate priorities, time-sensitive items, upcoming travel, and overall workload. ${sectionNotes} Respond ONLY with a JSON object like this (no other text): {"paragraphs":["Sentence one.","Sentence two.","Sentence three.","Sentence four."]} Task list: ${lines.join('\n')}`;
+  try{
+    const resp=await fetch('/.netlify/functions/recap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
+    const data=await resp.json();
+    const text=data.text;
     if(text){
-      let paras = [];
-      try {
-        const j = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}')+1));
-        if(j.paragraphs && Array.isArray(j.paragraphs)) paras = j.paragraphs.filter(p=>p.trim());
-      } catch(e) {
-        paras = text.split(/\.\s+(?=[A-Z])/).map((p,i,a)=>p.trim()+(i<a.length-1?'.':'')).filter(p=>p.length>1);
-      }
-      if(paras.length>0){
-        el.innerHTML = paras.map(p=>'<p style="margin:0 0 8px 0">'+p.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>').join('');
-      } else {
-        el.textContent = text;
-      }
+      let paras=[];
+      try{const j=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1));if(j.paragraphs&&Array.isArray(j.paragraphs))paras=j.paragraphs.filter(p=>p.trim());}
+      catch(e){paras=text.split(/\.\s+(?=[A-Z])/).map((p,i,a)=>p.trim()+(i<a.length-1?'.':'')).filter(p=>p.length>1);}
+      if(paras.length>0){el.innerHTML=paras.map(p=>'<p style="margin:0 0 8px 0">'+p.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>').join('');}
+      else{el.textContent=text;}
       scheduleSave();
-    } else {
-      el.textContent = 'Unable to generate recap — please try again.';
-    }
-  } catch(err){
-    el.textContent = 'Unable to generate recap — check your connection.';
-  }
-
-  btn.disabled = false;
-  btn.classList.remove('loading');
-  btn.textContent = 'Generate with AI';
+    }else{el.textContent='Unable to generate recap — please try again.';}
+  }catch(err){el.textContent='Unable to generate recap — check your connection.';}
+  btn.disabled=false;btn.classList.remove('loading');btn.textContent='Generate with AI';
 }
+
 document.getElementById('recapText').addEventListener('blur',()=>scheduleSave());
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Init ───────────────────────────────────────────────────────────────────
 async function init(){
   await loadConfig();
-  SM = getSM();
-  AIDS = Object.keys(SM);
+  SM=getSM();
+  AIDS=Object.keys(SM);
   buildSectionDropdown();
   await loadFromCloud();
   sf('all');
   render();
-  // Clear stale recap and auto-generate fresh one after load
   setTimeout(()=>{
     const recapEl=document.getElementById('recapText');
     if(recapEl)recapEl.innerHTML='<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
     generateRecap();
-  }, 1500);
+  },1500);
 }
-
 init();
