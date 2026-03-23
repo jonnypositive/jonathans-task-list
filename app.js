@@ -144,7 +144,7 @@ const INIT={
     {text:'Connect Fall Marketplace Tampa',done:false,priority:'none',travelStart:'2026-08-24',travelEnd:'2026-08-26'},
     {text:'Beyond Dallas and Houston',done:false,priority:'none',travelStart:'2026-09-07',travelEnd:'2026-09-10'},
   ],
-  daily_recap:'Your most pressing items today are the Expense Report from MIC On-Site, the follow-up emails to MIC panelists, the email to Leslie and Jenni Garrity regarding the MIC session, the Yoga on the Range Marketing Plan, and the PBR/USAFA Football Contract status.',
+  daily_recap:[],
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -542,7 +542,7 @@ function render(){
   if(CFG.logo){logoImg.src=CFG.logo;logoImg.style.display='';document.querySelector('.hdr').style.background=CFG.logoBackground||'#1F3864';}
   else{logoImg.style.display='';}
   let ta=0,td=0,th=0;
-  AIDS.forEach(id=>(T[id]||[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(t.priority==='high'&&!t.done)th++;}}));
+  AIDS.forEach(id=>(Array.isArray(T[id])?T[id]:[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(t.priority==='high'&&!t.done)th++;}}));
   document.getElementById('sT').textContent=ta;
   document.getElementById('sD').textContent=td;
   document.getElementById('sR').textContent=ta-td;
