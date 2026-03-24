@@ -511,7 +511,17 @@ exports.handler = async (event) => {
 
   try {
     // Load data from Netlify Blobs
-    const store = getStore({ name: 'task-data', consistency: 'strong' });
+    const siteID = process.env.NETLIFY_SITE_ID;
+    const token = process.env.NETLIFY_TOKEN || process.env.NETLIFY_API_TOKEN;
+    if (!siteID || !token) {
+      throw new Error(`Missing env vars: NETLIFY_SITE_ID=${!!siteID}, NETLIFY_TOKEN=${!!token}`);
+    }
+    const store = getStore({
+      name: 'task-data',
+      consistency: 'strong',
+      siteID,
+      token
+    });
     const raw = await store.get('jdtl_v5');
     if (!raw) return { statusCode: 404, headers, body: JSON.stringify({ error: 'No data found' }) };
 
