@@ -1,5 +1,7 @@
 // netlify/functions/export.js
 // Jonathan's Daily Task List — .docx export
+// Updated: Hot Dates & In-House Groups, Decision Due Date, no Notes section,
+//          task due dates in export, per-task notes, 2-page limit (no forced breaks)
 
 const { getStore } = require('@netlify/blobs');
 const {
@@ -11,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
+// Page: US Letter, 0.5" margins → content width = 12240 - 1440 = 10800 DXA
 const PAGE_W    = 12240;
 const PAGE_H    = 15840;
 const MARGIN    = 720;   // 0.5 inch
@@ -24,26 +27,25 @@ const P3_COLOR = '1a1d23';
 const GRAY_BG  = 'F2F2F2';
 
 // ─── SECTION DEFINITIONS ────────────────────────────────────────────────────
-// IDs must match app.js keys exactly:
-//   calls, dbr, proposals_prep, proposals_out, contracts_prep, contracts_out,
-//   tasks, prospecting, culture, affinity, travel
+// Must mirror index.html SECTIONS (minus recap, which goes at end)
 const SECTIONS = [
-  { id:'calls',          label:'Hot Dates and In-House Groups',              type:'full' },
-  { id:'dbr',            label:'DBR',                                        type:'full' },
-  { id:'proposals_prep', label:'Proposals',  sub:'Prep',                     type:'split_left',  pair:'proposals' },
-  { id:'proposals_out',  label:'Proposals',  sub:'Out',                      type:'split_right', pair:'proposals' },
-  { id:'contracts_prep', label:'Contracts',  sub:'Prep',                     type:'split_left',  pair:'contracts' },
-  { id:'contracts_out',  label:'Contracts',  sub:'Out',                      type:'split_right', pair:'contracts' },
-  { id:'tasks',          label:'Tasks / Short-Term Projects',                type:'full', hasDueDate:true },
-  { id:'prospecting',    label:'Prospecting',                                type:'full' },
-  { id:'culture',        label:'Culture Club & Sales Manager Affinity Group', sub:'Culture Club',                  type:'split_left',  pair:'cult_aff' },
-  { id:'affinity',       label:'Culture Club & Sales Manager Affinity Group', sub:'Sales Manager Affinity Group',  type:'split_right', pair:'cult_aff' },
-  { id:'travel',         label:'Travel',                                     type:'full' },
+  { id:'hotdates',       label:'Hot Dates and In-House Groups', type:'full' },
+  { id:'dbr',            label:'DBR',                           type:'full' },
+  { id:'proposals_prep', label:'Proposals',  sub:'Prep',        type:'split_left',  pair:'proposals' },
+  { id:'proposals_out',  label:'Proposals',  sub:'Out',         type:'split_right', pair:'proposals' },
+  { id:'contracts_prep', label:'Contracts',  sub:'Prep',        type:'split_left',  pair:'contracts' },
+  { id:'contracts_out',  label:'Contracts',  sub:'Out',         type:'split_right', pair:'contracts' },
+  { id:'tasks',          label:'Tasks / Short-Term Projects',   type:'full', hasDueDate:true },
+  { id:'prospecting',    label:'Prospecting',                   type:'full' },
+  { id:'culture',        label:'Culture Club & Sales Manager Affinity Group', sub:'Culture Club',                 type:'split_left',  pair:'cult_aff' },
+  { id:'affinity',       label:'Culture Club & Sales Manager Affinity Group', sub:'Sales Manager Affinity Group', type:'split_right', pair:'cult_aff' },
+  { id:'travel',         label:'Travel',                        type:'full' },
+  // Notes section REMOVED per update #5
 ];
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 function textColor(p) {
-  return p === 'high' ? P1_COLOR : p === 'med' ? P2_COLOR : P3_COLOR;
+  return p === 'P1' ? P1_COLOR : p === 'P2' ? P2_COLOR : P3_COLOR;
 }
 
 function noBorder() {
@@ -51,12 +53,17 @@ function noBorder() {
   return { top: none, bottom: none, left: none, right: none };
 }
 
-// Standard task paragraph
+function thinBorder() {
+  const b = { style: BorderStyle.SINGLE, size: 1, color: 'DDDDDD' };
+  return { top: b, bottom: b, left: b, right: b };
+}
+
+// Standard task text paragraph
 function taskPara(text, priority, extraText) {
   const color = textColor(priority);
   const runs = [new TextRun({ text: text || '', font: 'Arial', size: 18, color })];
   if (extraText) {
-    runs.push(new TextRun({ text: '  ' + extraText, font: 'Arial', size: 16, color: '888888' }));
+    runs.push(new TextRun({ text: ' ' + extraText, font: 'Arial', size: 16, color: '888888' }));
   }
   return new Paragraph({
     children: runs,
@@ -73,27 +80,14 @@ function notesPara(notes) {
   });
 }
 
-// Format date field (YYYY-MM-DD → M/D/YY)
-function fmt(s) {
-  if (!s) return '';
-  const p = s.split('-');
-  if (p.length !== 3) return s;
-  const y = parseInt(p[0], 10), m = parseInt(p[1], 10), d = parseInt(p[2], 10);
-  if (isNaN(y) || isNaN(m) || isNaN(d)) return s;
-  return m + '/' + d + '/' + String(y).slice(-2);
-}
-
+// Due date badge text
 function formatDueDate(dateStr) {
   if (!dateStr) return '';
-  return 'Due: ' + fmt(dateStr);
+  const [y, m, d] = dateStr.split('-');
+  return `Due: ${parseInt(m)}/${parseInt(d)}/${y.slice(2)}`;
 }
 
-function formatTravelDates(item) {
-  if (!item.travelStart && !item.travelEnd) return '';
-  return (item.travelStart ? fmt(item.travelStart) : '?') + '–' + (item.travelEnd ? fmt(item.travelEnd) : '?');
-}
-
-// Section header (navy background, white bold text)
+// Section header paragraph (navy background, white bold text)
 function sectionHeader(label) {
   return new Paragraph({
     children: [new TextRun({ text: label.toUpperCase(), font: 'Arial', size: 18, bold: true, color: WHITE })],
@@ -113,35 +107,15 @@ function subLabel(label) {
   });
 }
 
-// Build extra info string for a task
-function buildExtra(item, sec) {
-  const parts = [];
-  // Due date (Tasks section)
-  if (sec.hasDueDate && item.dueDate) parts.push(formatDueDate(item.dueDate));
-  // Arrival date (most sections) — label "Decision Due Date" for proposals_out
-  if (item.arrival) {
-    const label = sec.id === 'proposals_out' ? 'Decision Due:' : 'Arr:';
-    parts.push(label + ' ' + fmt(item.arrival));
-  }
-  // Travel date range (calls, travel sections)
-  const travelStr = formatTravelDates(item);
-  if (travelStr) parts.push(travelStr);
-  // Time (calls / hot dates section)
-  if (item.time) parts.push('@ ' + item.time);
-  return parts.join('  ');
-}
-
 // ─── SECTION BUILDERS ───────────────────────────────────────────────────────
-
+// Full-width section
 function buildFullSection(sec, tasks) {
-  // Filter: exclude done items (done field is 'done' in app.js, not 'd')
-  const items = (tasks[sec.id] || []).filter(x => !x.done && x.text);
+  const items = (tasks[sec.id] || []).filter(x => !x.d);
   if (!items.length) return [];
-
   const paras = [sectionHeader(sec.label)];
   items.forEach(item => {
-    const extra = buildExtra(item, sec);
-    paras.push(taskPara(item.text, item.priority, extra));
+    const extra = sec.hasDueDate && item.dueDate ? formatDueDate(item.dueDate) : '';
+    paras.push(taskPara(item.t, item.p, extra));
     if (item.notes && item.notes.trim()) {
       paras.push(notesPara(item.notes.trim()));
     }
@@ -149,18 +123,18 @@ function buildFullSection(sec, tasks) {
   return paras;
 }
 
+// Split (two-column) section using a Table
 function buildSplitSection(lSec, rSec, tasks) {
-  const lItems = (tasks[lSec.id] || []).filter(x => !x.done && x.text);
-  const rItems = (tasks[rSec.id] || []).filter(x => !x.done && x.text);
+  const lItems = (tasks[lSec.id] || []).filter(x => !x.d);
+  const rItems = (tasks[rSec.id] || []).filter(x => !x.d);
   if (!lItems.length && !rItems.length) return [];
-
-  const HALF = Math.floor(CONTENT_W / 2);
+  const HALF = Math.floor(CONTENT_W / 2); // 5400 each
 
   function colParas(items, sub, secDef) {
     const ps = [subLabel(sub)];
     items.forEach(item => {
-      const extra = buildExtra(item, secDef);
-      ps.push(taskPara(item.text, item.priority, extra));
+      const extra = secDef.hasDueDate && item.dueDate ? formatDueDate(item.dueDate) : '';
+      ps.push(taskPara(item.t, item.p, extra));
       if (item.notes && item.notes.trim()) {
         ps.push(notesPara(item.notes.trim()));
       }
@@ -169,7 +143,6 @@ function buildSplitSection(lSec, rSec, tasks) {
   }
 
   const headerPara = sectionHeader(lSec.label);
-
   const table = new Table({
     width: { size: CONTENT_W, type: WidthType.DXA },
     columnWidths: [HALF, HALF],
@@ -192,34 +165,27 @@ function buildSplitSection(lSec, rSec, tasks) {
       }),
     ],
   });
-
   return [headerPara, table];
 }
 
-// ─── LOGO ────────────────────────────────────────────────────────────────────
-function getLogoData() {
+// ─── LOGO ───────────────────────────────────────────────────────────────────
+function getLogoBase64() {
   const candidates = [
-    path.join(__dirname, '../../hotel_polaris_logo_white.png'),
-    path.join(__dirname, '../hotel_polaris_logo_white.png'),
     path.join(__dirname, '../../logo.png'),
     path.join(__dirname, '../logo.png'),
-    path.join(process.env.LAMBDA_TASK_ROOT || '', 'hotel_polaris_logo_white.png'),
     path.join(process.env.LAMBDA_TASK_ROOT || '', 'logo.png'),
   ];
   for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return fs.readFileSync(p);
-    } catch (_) {}
+    try { if (fs.existsSync(p)) return fs.readFileSync(p); } catch (_) {}
   }
   return null;
 }
 
-// ─── HEADER ──────────────────────────────────────────────────────────────────
+// ─── HEADER ─────────────────────────────────────────────────────────────────
 function buildHeader(dateStr) {
-  const logoData = getLogoData();
-
+  const logoData = getLogoBase64();
   const titleRun = new TextRun({ text: "Jonathan's Daily Task List", font: 'Arial', size: 24, bold: true, color: WHITE });
-  const dateRun  = new TextRun({ text: '  ' + dateStr, font: 'Arial', size: 18, color: 'AABBCC' });
+  const dateRun  = new TextRun({ text: ' ' + dateStr, font: 'Arial', size: 18, color: 'AABBCC', break: 0 });
 
   const leftPara = new Paragraph({
     children: [titleRun, dateRun],
@@ -286,7 +252,7 @@ function buildRecap(recapText) {
   return paras;
 }
 
-// ─── MAIN HANDLER ────────────────────────────────────────────────────────────
+// ─── MAIN HANDLER ───────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -311,7 +277,6 @@ exports.handler = async (event) => {
 
   SECTIONS.forEach(sec => {
     if (sec.type === 'split_right') return;
-
     if (sec.type === 'full') {
       children.push(...buildFullSection(sec, tasks));
     } else if (sec.type === 'split_left' && !done.has(sec.pair)) {
