@@ -1,20 +1,15 @@
 // netlify/functions/export.js
 // Jonathan's Daily Task List — .docx export
-// v4: v1 table-based rendering engine + v3 data fixes
-//   - Correct section key: 'calls' (not 'hotdates')
-//   - Correct done flag: x.done (not x.d)
-//   - Dated filename
-//   - No Notes section
-//   - Due dates on Tasks
-//   - Per-task notes in export
-//   - Culture Club / Affinity dynamic dates preserved
+// v5: v4 + fix empty sections bug
+//   - Removed @netlify/blobs dependency (was silently swallowing POST body data)
+//   - Data always comes from POST body (app sends tasks: T on every export)
+//   - Clean parse: no silent try/catch hiding failures
 
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         BorderStyle, WidthType, ShadingType, VerticalAlign, AlignmentType,
         ImageRun, PageBreak, Header } = require('docx');
 const fs   = require('fs');
 const path = require('path');
-const { getStore } = require('@netlify/blobs');
 
 exports.handler = async (event) => {
   const headers = {
@@ -26,24 +21,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST")   return { statusCode: 405, headers, body: "Method not allowed" };
 
   try {
-    // ── Load data ──────────────────────────────────────────────────────────
-    let T = {}, recap = '';
-    try {
-      const body = JSON.parse(event.body || '{}');
-      T      = body.tasks  || {};
-      recap  = body.recap  || '';
-    } catch (_) {}
-
-    // If tasks weren't in the POST body, try loading from Netlify Blobs
-    if (!Object.keys(T).length) {
-      try {
-        const store = getStore({ name: 'task-data', consistency: 'strong' });
-        const raw   = await store.get('tasks');
-        if (raw) T  = JSON.parse(raw);
-        const rRaw  = await store.get('recap');
-        if (rRaw) recap = rRaw;
-      } catch (_) {}
-    }
+    // ── Load data from POST body ───────────────────────────────────────────
+    const body = JSON.parse(event.body);
+    const T    = body.tasks  || {};
+    const recap = body.recap || '';
 
     // ── Date / time helpers ────────────────────────────────────────────────
     const TZ  = 'America/Denver';
