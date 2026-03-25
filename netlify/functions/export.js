@@ -1,13 +1,10 @@
 // netlify/functions/export.js
 // Jonathan's Daily Task List — .docx export
-// v6: v5 + fix page overflow on Tasks/Prospecting
-//   - Removed cantSplit/keepLines from buildTwoCol data rows
-//   - Header rows still keep together; task rows now flow freely across pages
-//   - Maintains 2-page max without forcing content onto page 3
+// v7: removed all page break logic — sections flow organically across pages
 
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         BorderStyle, WidthType, ShadingType, VerticalAlign, AlignmentType,
-        ImageRun, PageBreak, Header } = require('docx');
+        ImageRun, Header } = require('docx');
 const fs   = require('fs');
 const path = require('path');
 
@@ -309,7 +306,8 @@ exports.handler = async (event) => {
     }
 
     // Tasks / Prospecting / Hot Dates: two-column with divider rows
-    function buildTwoCol(title, tasks, showArr, showDR, showDue, mode) {
+    // maxRows: optional cap on rendered table rows (not counting header) to prevent overflow
+    function buildTwoCol(title, tasks, showArr, showDR, showDue, mode, maxRows) {
       const active = tasks.filter(t => !t.done && (t.text || t.t));
       if (!active.length) return null;
 
@@ -352,7 +350,8 @@ exports.handler = async (event) => {
 
       const lc  = colCells(left, 0);
       const rc  = colCells(right, mid);
-      const max = Math.max(lc.length, rc.length);
+      let max = Math.max(lc.length, rc.length);
+      if (maxRows && max > maxRows) max = maxRows;
       const rows = [];
       rows.push(new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title, W, 2)] }));
       for (let i = 0; i < max; i++) {
@@ -453,10 +452,7 @@ exports.handler = async (event) => {
     ));
 
     // Tasks (with due dates)
-    addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true));
-
-    // Page break before Prospecting
-    children.push(new Paragraph({ children: [new PageBreak()], spacing: { before: 0, after: 0 } }));
+    addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true, null));
 
     // Prospecting
     addSec(children, buildTwoCol('Prospecting', T.prospecting || [], false, false, false));
