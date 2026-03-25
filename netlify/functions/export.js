@@ -1,9 +1,9 @@
 // netlify/functions/export.js
 // Jonathan's Daily Task List — .docx export
-// v5: v4 + fix empty sections bug
-//   - Removed @netlify/blobs dependency (was silently swallowing POST body data)
-//   - Data always comes from POST body (app sends tasks: T on every export)
-//   - Clean parse: no silent try/catch hiding failures
+// v6: v5 + fix page overflow on Tasks/Prospecting
+//   - Removed cantSplit/keepLines from buildTwoCol data rows
+//   - Header rows still keep together; task rows now flow freely across pages
+//   - Maintains 2-page max without forcing content onto page 3
 
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         BorderStyle, WidthType, ShadingType, VerticalAlign, AlignmentType,
@@ -357,7 +357,6 @@ exports.handler = async (event) => {
       rows.push(new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title, W, 2)] }));
       for (let i = 0; i < max; i++) {
         rows.push(new TableRow({
-          cantSplit: true, keepLines: true,
           children: [lc[i] || emCell(HW, i), rc[i] || emCell(HW, i)],
         }));
       }
