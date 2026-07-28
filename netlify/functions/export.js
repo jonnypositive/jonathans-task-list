@@ -424,7 +424,7 @@ exports.handler = async (event) => {
           children: [new Paragraph({
             alignment: AlignmentType.RIGHT,
             children: logoData
-              ? [new ImageRun({ type: 'png', data: logoData, transformation: { width: 180, height: 45 },
+              ? [new ImageRun({ type: 'png', data: logoData, transformation: { width: 125, height: 45 },
                   altText: { title: 'Hotel Polaris', description: 'Hotel Polaris logo', name: 'HotelPolarisLogo' } })]
               : [new TextRun({ text: 'Hotel Polaris', font: FONT, size: 18, bold: true, color: 'FFFFFF' })],
           })],
