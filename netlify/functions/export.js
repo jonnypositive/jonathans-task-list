@@ -425,8 +425,8 @@ exports.handler = async (event) => {
             alignment: AlignmentType.RIGHT,
             children: logoData
               ? [new ImageRun({ type: 'png', data: logoData, transformation: { width: 125, height: 45 },
-                  altText: { title: 'Hotel Polaris', description: 'Hotel Polaris logo', name: 'HotelPolarisLogo' } })]
-              : [new TextRun({ text: 'Hotel Polaris', font: FONT, size: 18, bold: true, color: 'FFFFFF' })],
+                  altText: { title: 'The James Nautilus Miami Beach', description: 'Hotel Polaris logo', name: 'HotelPolarisLogo' } })]
+              : [new TextRun({ text: 'The James Nautilus Miami Beach', font: FONT, size: 18, bold: true, color: 'FFFFFF' })],
           })],
         }),
       ]}),
