@@ -20,6 +20,7 @@ function getSM() {
     proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
     contracts_prep: {label:'Contracts: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
     contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
+    contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},    
     tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
     prospecting:    {label:'Prospecting',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     culture:        {label:'Culture Club',                  hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
@@ -77,6 +78,9 @@ const INIT={
   contracts_out:[
     {text:'San Francisco 49ers',done:false,priority:'high',arrival:'2026-11-16'},
     {text:'AOAF Addendum',done:false,priority:'none',arrival:'2026-04-16'},
+    {text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'}
+  ],
+  contracts_closed:[
     {text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'}
   ],
   tasks:[
@@ -559,10 +563,11 @@ function render(){
       <div class="scol"><div class="scholdr"><span>${SM.proposals_out?SM.proposals_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('proposals_out')">+ Add</button></div>${rows('proposals_out',T.proposals_out||[])}</div>
     </div></div>`;
   }
-  if(SM.contracts_prep||SM.contracts_out){
-    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols">
+if(SM.contracts_prep||SM.contracts_out||SM.contracts_closed){
+    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols3">
       <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('contracts_prep')">+ Add</button></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
       <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('contracts_out')">+ Add</button></div>${rows('contracts_out',T.contracts_out||[])}</div>
+      <div class="scol"><div class="scholdr"><span>${SM.contracts_closed?SM.contracts_closed.label:'Closed'}</span><button class="scholdr-add" onclick="openAdd('contracts_closed')">+ Add</button></div>${rows('contracts_closed',T.contracts_closed||[])}</div>
     </div></div>`;
   }
   // CHANGE 4: Tasks section — no page-break CSS anywhere
