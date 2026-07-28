@@ -24,7 +24,7 @@ exports.handler = async (event) => {
     const recap = body.recap || '';
 
     // ── Date / time helpers ────────────────────────────────────────────────
-    const TZ  = 'America/Denver';
+    const TZ  = 'America/New_York';
     const NOW = new Date();
     const DATE_STR = NOW.toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: TZ
