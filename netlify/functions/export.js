@@ -458,7 +458,7 @@ exports.handler = async (event) => {
     addSec(children, buildTwoCol('Prospecting', T.prospecting || [], false, false, false));
 
        // Travel (with 30/60-day dividers)
-    addSec(children, buildTwoCol('Travel', T.travel || [], false, true, false, 'travel'));
+    addSec(children, buildTwoCol('Upcoming Industry Events and Travel', T.travel || [], false, true, false, 'travel'));
 
     // Daily Recap
     addSec(children, buildRecap(recap));
