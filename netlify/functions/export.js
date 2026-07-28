@@ -259,7 +259,27 @@ exports.handler = async (event) => {
           rActive[i] ? mkCell(rActive[i], HW, showArr, false, false, i) : emCell(HW, i),
         ]}));
       }
-      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, HW], rows });
+return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, HW], rows });
+    }
+
+    // Contracts (3-way): Prep / Out / Closed side-by-side with sub-headers
+    function buildSplit3(title, l1Label, l1Tasks, l2Label, l2Tasks, l3Label, l3Tasks, showArr) {
+      const a1 = l1Tasks.filter(t => !t.done && (t.text || t.t));
+      const a2 = l2Tasks.filter(t => !t.done && (t.text || t.t));
+      const a3 = l3Tasks.filter(t => !t.done && (t.text || t.t));
+      if (!a1.length && !a2.length && !a3.length) return null;
+      const rows = [];
+      rows.push(new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title, W, 3)] }));
+      rows.push(new TableRow({ cantSplit: true, children: [shCell(l1Label, TW), shCell(l2Label, TW), shCell(l3Label, TW)] }));
+      const max = Math.max(a1.length, a2.length, a3.length, 1);
+      for (let i = 0; i < max; i++) {
+        rows.push(new TableRow({ children: [
+          a1[i] ? mkCell(a1[i], TW, showArr, false, false, i) : emCell(TW, i),
+          a2[i] ? mkCell(a2[i], TW, showArr, false, false, i) : emCell(TW, i),
+          a3[i] ? mkCell(a3[i], TW, showArr, false, false, i) : emCell(TW, i),
+        ]}));
+      }
+      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [TW, TW, TW], rows });
     }
 
     // Client Dates + DBR side by side (no sub-header row, separate navy headers)
@@ -447,11 +467,10 @@ exports.handler = async (event) => {
       'Proposals', 'Prep', T.proposals_prep || [], 'Out', T.proposals_out || [], true
     ));
 
-    // Contracts
-    addSec(children, buildSplit(
-      'Contracts', 'Prep', T.contracts_prep || [], 'Out', T.contracts_out || [], true
+ // Contracts
+    addSec(children, buildSplit3(
+      'Contracts', 'Prep', T.contracts_prep || [], 'Out', T.contracts_out || [], 'Closed', T.contracts_closed || [], true
     ));
-
     // Tasks (with due dates)
     addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true, null));
 
