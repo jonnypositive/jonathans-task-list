@@ -8,10 +8,13 @@
       "label": "Hot Dates and In-House Groups",
       "enabled": true
     },
-    "proposals_out": {
+     "proposals_out": {
       "label": "Proposals: Out",
       "enabled": true
-    }
+    },
+    "culture": { "enabled": false },
+    "affinity": { "enabled": false },
+    "daily_recap": { "enabled": false }
   },
   "meetings": {
     "culture": {
