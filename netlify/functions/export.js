@@ -29,10 +29,10 @@ exports.handler = async (event) => {
     const DATE_STR = NOW.toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: TZ
     });
-    const TIME_STR = NOW.toLocaleTimeString('en-US', {
+     TIME_STR = NOW.toLocaleTimeString('en-US', {
       hour: 'numeric', minute: '2-digit', hour12: true, timeZone: TZ
     });
-    const DATE_TIME_STR = DATE_STR + ' · ' + TIME_STR;
+     DATE_TIME_STR = DATE_STR + ' · ' + TIME_STR;
 
     function getDBRDate() {
       const n = new Date(), day = n.getDay(), h = n.getHours();
@@ -95,6 +95,7 @@ exports.handler = async (event) => {
     const FONT = 'Arial';
     const W    = 10800;   // content width DXA (0.5" margins each side)
     const HW   = 5400;    // half width
+    const TW   = 3600;    // third width (equal thirds)
 
     const C = {
       hdr:    '1F3864',   // navy
