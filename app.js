@@ -17,7 +17,6 @@ function getSM() {
     calls:          {label:'Hot Dates and In-House Groups', hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:true},
     dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
-    contracts_prep: {label:'Contracts: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
@@ -52,7 +51,11 @@ let AIDS = [];
 // Sections that use the Prospect / P3 / P2 / Tentative labels instead of High / Med / Low.
 // The stored field is still "priority"; only its allowed values and display change.
 const PRI_SECS = ['dbr','proposals_out'];
-const PRI = {prospect:'Prospect', p3:'P3', p2:'P2', tentative:'Tentative'};
+const PRI={definite:'Definite',tentative:'Tentative',p2:'P2',p3:'P3',prospect:'Prospect'};
+// Sort rank: Definite is always first. Proposals: Out then runs Tentative, P2, P3, Prospect, unlabeled.
+const PRI_RANK_PO={definite:0,tentative:1,p2:2,p3:3,prospect:4,none:5};
+function priRank(sid,t){const p=t.priority||'none';if(p==='definite')return 0;if(sid==='proposals_out')return PRI_RANK_PO[p]!==undefined?PRI_RANK_PO[p]:5;return 1;}
+function srtPri(a,sid){const w=a.filter(t=>t.text).map((t,i)=>({t,i,r:priRank(sid,t)}));w.sort((x,y)=>x.r-y.r||x.i-y.i);return[...w.map(o=>o.t),...a.filter(t=>!t.text)];}
 // True only for the old "High" flag, and never in the sections that use the new labels
 function hi(sid,t){return t.priority==='high'&&!PRI_SECS.includes(sid);}
 function parseVal(raw){const n=parseFloat(String(raw).replace(/[^0-9.]/g,''));return isNaN(n)||n<0?null:n;}
@@ -182,6 +185,7 @@ async function loadFromCloud(){
         T=d.tasks;
         if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
         AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
+        PRI_SECS.forEach(id=>{if(T[id])T[id]=ss(id,T[id]);});
         setSyncStatus('saved','Synced');
         return;
       }
@@ -194,6 +198,7 @@ async function loadFromCloud(){
       T=JSON.parse(s);
       if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
       AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
+      PRI_SECS.forEach(id=>{if(T[id])T[id]=ss(id,T[id]);});
       setSyncStatus('saved','Loaded from local cache');
       return;
     }
@@ -227,7 +232,7 @@ function srt(a,sid){
   return[...p,...h,...r,...b];
 }
 function srtDR(a,sid){const h=a.filter(t=>t.text&&hi(sid,t)&&!t.done),r=a.filter(t=>t.text&&!(hi(sid,t)&&!t.done));return[...h,...r];}
-function ss(sid,a){return SM[sid]&&SM[sid].dr?srtDR(a,sid):srt(a,sid);}
+function ss(sid,a){if(PRI_SECS.includes(sid))return srtPri(a,sid);return SM[sid]&&SM[sid].dr?srtDR(a,sid):srt(a,sid);}
 function efy(s){
   if(!s)return s;const p=s.split('-');if(p.length!==3)return s;
   let y=parseInt(p[0],10);if(isNaN(y))return s;
@@ -261,7 +266,7 @@ function dbrDate(){
 // ── Actions ────────────────────────────────────────────────────────────────
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
-function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
+function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
@@ -335,7 +340,7 @@ function onSecChange(){
   // Priority choices depend on the section: DBR and Proposals: Out use the four new labels
   const mpri=document.getElementById('mpri');
   if(PRI_SECS.includes(sid)){
-    mpri.innerHTML='<option value="none">None</option><option value="prospect">Prospect</option><option value="p3">P3</option><option value="p2">P2</option><option value="tentative">Tentative</option>';
+    mpri.innerHTML='<option value="none">None</option><option value="prospect">Prospect</option><option value="p3">P3</option><option value="p2">P2</option><option value="tentative">Tentative</option><option value="definite">Definite</option>';
     mpri.value=(sid==='dbr')?'prospect':'none';
   }else{
     mpri.innerHTML='<option value="none">None</option><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option>';
@@ -511,10 +516,27 @@ function rows(sid,arr){
   return`<div class="tlist" ${dz}>${h}</div>`;
 }
 
+function pipelineData(){
+  const order=['definite','tentative','p2','p3','prospect'];
+  const tot={};order.forEach(k=>{tot[k]={n:0,v:0};});
+  PRI_SECS.forEach(sid=>{(T[sid]||[]).forEach(t=>{
+    if(!t.text||t.done||!tot[t.priority])return;
+    tot[t.priority].n++;const v=Number(t.value);if(!isNaN(v))tot[t.priority].v+=v;
+  });});
+  return tot;
+}
+function pipelineHTML(){
+  const t=pipelineData();
+  const line=(k)=>`<tr><td><span class="pb pri-${k}">${PRI[k]}</span></td><td class="n">${t[k].n} ${t[k].n===1?'task':'tasks'}</td><td class="v">${fmtVal(t[k].v)}</td></tr>`;
+  const cn=t.tentative.n+t.p2.n,cv=t.tentative.v+t.p2.v;
+  const all=Object.keys(t).reduce((a,k)=>({n:a.n+t[k].n,v:a.v+t[k].v}),{n:0,v:0});
+  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">Pipeline<span class="ssub">open items in DBR and Proposals: Out</span></span></div><table class="pipe-tbl"><tbody>${line('definite')}${line('tentative')}${line('p2')}<tr class="combo"><td>Tentative + P2</td><td class="n">${cn} ${cn===1?'task':'tasks'}</td><td class="v">${fmtVal(cv)}</td></tr>${line('p3')}${line('prospect')}<tr class="tot"><td>Total pipeline</td><td class="n">${all.n} ${all.n===1?'task':'tasks'}</td><td class="v">${fmtVal(all.v)}</td></tr></tbody></table></div>`;
+}
+
 function sec(cls,title,sid,sub,onHeadClick){
   const addBtn=`<button class="shead-add" onclick="event.stopPropagation();openAdd('${sid}')">+ Add</button>`;
   const clickAttr=onHeadClick?`onclick="${onHeadClick}"`:`onclick="openAdd('${sid}')"`;
-  return`<div class="sec ${cls}"><div class="shead" ${clickAttr}><span class="stitle">${title}${sub?`<span class="ssub">&mdash; ${sub}</span>`:''}</span>${addBtn}</div>${rows(sid,T[sid]||[])}</div>`;
+  return`<div class="sec ${cls}"><div class="shead" ${clickAttr}><span class="stitle">${title}${sub?`<span class="ssub">&middot; ${sub}</span>`:''}</span>${addBtn}</div>${rows(sid,T[sid]||[])}</div>`;
 }
 
 function prosCols(){
@@ -586,12 +608,12 @@ function render(){
   const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' — '+getMeetingDate('affinity');
   g.innerHTML='';
   // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
+  g.innerHTML+=pipelineHTML();
   if(SM.calls)g.innerHTML+=sec('sec',SM.calls.label,'calls');
   if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
   if(SM.proposals_out)g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');
-if(SM.contracts_prep||SM.contracts_out||SM.contracts_closed){
-    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols3">
-      <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('contracts_prep')">+ Add</button></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
+if(SM.contracts_out||SM.contracts_closed){
+    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols">
       <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('contracts_out')">+ Add</button></div>${rows('contracts_out',T.contracts_out||[])}</div>
       <div class="scol"><div class="scholdr"><span>${SM.contracts_closed?SM.contracts_closed.label:'Closed'}</span><button class="scholdr-add" onclick="openAdd('contracts_closed')">+ Add</button></div>${rows('contracts_closed',T.contracts_closed||[])}</div>
     </div></div>`;
