@@ -15,14 +15,14 @@ async function loadConfig() {
 function getSM() {
   const defaults = {
     calls:          {label:'Hot Dates and In-House Groups', hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:true},
-    dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
-    proposals_prep: {label:'Proposals: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
-    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
-    contracts_prep: {label:'Contracts: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
-    contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},
-    contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false},    
+    dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
+    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
+    contracts_prep: {label:'Contracts: Prep',               hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
+    contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
+    contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
     prospecting:    {label:'Prospecting',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    one_on_one:     {label:'One on One Tasks',              hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     culture:        {label:'Culture Club',                  hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     affinity:       {label:'Sales Manager Affinity',        hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     travel:         {label:'Travel',                        hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:false},
@@ -41,6 +41,7 @@ function getSM() {
       dr:       cfg.hasDateRange !== undefined ? cfg.hasDateRange : def.hasDateRange,
       time:     def.hasTime    || false,
       dueDate:  def.hasDueDate || false,
+      val:      def.hasValue   || false,
     };
   });
   return sm;
@@ -48,6 +49,15 @@ function getSM() {
 
 let SM = {};
 let AIDS = [];
+
+// Sections that use the Prospect / P3 / P2 / Tentative labels instead of High / Med / Low.
+// The stored field is still "priority"; only its allowed values and display change.
+const PRI_SECS = ['dbr','proposals_out'];
+const PRI = {prospect:'Prospect', p3:'P3', p2:'P2', tentative:'Tentative'};
+// True only for the old "High" flag, and never in the sections that use the new labels
+function hi(sid,t){return t.priority==='high'&&!PRI_SECS.includes(sid);}
+function parseVal(raw){const n=parseFloat(String(raw).replace(/[^0-9.]/g,''));return isNaN(n)||n<0?null:n;}
+function fmtVal(v){const n=Number(v);return '$'+n.toLocaleString('en-US',{minimumFractionDigits:Number.isInteger(n)?0:2,maximumFractionDigits:2});}
 
 // ── Default data ───────────────────────────────────────────────────────────
 const INIT={
@@ -172,6 +182,7 @@ async function loadFromCloud(){
       // Only use cloud data if it has tasks AND no error field
       if(d&&d.tasks&&!d.error){
         T=d.tasks;
+        if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
         AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
         if(d.recap)document.getElementById('recapText').innerHTML=d.recap;
         setSyncStatus('saved','Synced');
@@ -184,6 +195,7 @@ async function loadFromCloud(){
     const s=localStorage.getItem('jdtl_v5');
     if(s){
       T=JSON.parse(s);
+      if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
       AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
       setSyncStatus('saved','Loaded from local cache');
       return;
@@ -213,13 +225,13 @@ function scheduleSave(){
 }
 
 // ── Date helpers ───────────────────────────────────────────────────────────
-function srt(a){
-  const p=a.filter(t=>t.perpetual),h=a.filter(t=>!t.perpetual&&t.text&&t.priority==='high'&&!t.done);
-  const r=a.filter(t=>!t.perpetual&&t.text&&!(t.priority==='high'&&!t.done)),b=a.filter(t=>!t.perpetual&&!t.text);
+function srt(a,sid){
+  const p=a.filter(t=>t.perpetual),h=a.filter(t=>!t.perpetual&&t.text&&hi(sid,t)&&!t.done);
+  const r=a.filter(t=>!t.perpetual&&t.text&&!(hi(sid,t)&&!t.done)),b=a.filter(t=>!t.perpetual&&!t.text);
   return[...p,...h,...r,...b];
 }
-function srtDR(a){const h=a.filter(t=>t.text&&t.priority==='high'&&!t.done),r=a.filter(t=>t.text&&!(t.priority==='high'&&!t.done));return[...h,...r];}
-function ss(sid,a){return SM[sid]&&SM[sid].dr?srtDR(a):srt(a);}
+function srtDR(a,sid){const h=a.filter(t=>t.text&&hi(sid,t)&&!t.done),r=a.filter(t=>t.text&&!(hi(sid,t)&&!t.done));return[...h,...r];}
+function ss(sid,a){return SM[sid]&&SM[sid].dr?srtDR(a,sid):srt(a,sid);}
 function efy(s){
   if(!s)return s;const p=s.split('-');if(p.length!==3)return s;
   let y=parseInt(p[0],10);if(isNaN(y))return s;
@@ -253,7 +265,7 @@ function dbrDate(){
 // ── Actions ────────────────────────────────────────────────────────────────
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
-function cyc(sid,idx){const o=['none','high','med','low'],c=T[sid][idx].priority||'none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
+function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
@@ -268,6 +280,9 @@ function cDR(sid,idx){
   scheduleSave();openDP=null;render();
 }
 function clDR(sid,idx){T[sid][idx].travelStart=undefined;T[sid][idx].travelEnd=undefined;scheduleSave();openDP=null;render();}
+function tVal(sid,idx){const k='val_'+sid+'_'+idx;openDP=(openDP===k)?null:k;render();if(openDP){setTimeout(()=>{const d=document.getElementById('dv_'+sid+'_'+idx);if(d){d.focus();d.select();}},80);}}
+function cVal(sid,idx){const d=document.getElementById('dv_'+sid+'_'+idx);if(!d)return;const n=d.value.trim()?parseVal(d.value):null;T[sid][idx].value=n===null?undefined:n;scheduleSave();openDP=null;render();}
+function clVal(sid,idx){T[sid][idx].value=undefined;scheduleSave();openDP=null;render();}
 
 // CHANGE 6: Toggle inline notes panel
 function toggleNotes(sid,idx){
@@ -301,7 +316,7 @@ function commitEdit(){
 // CHANGE 1: openAdd now accepts a pre-selected section and opens the modal
 function openAdd(pre){
   document.getElementById('mSec').value=pre||'';
-  ['mtxt','marr','mts','mte','mnotes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['mtxt','marr','mts','mte','mnotes','mval'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const mtime=document.getElementById('mtime');if(mtime)mtime.value='';
   const mduedate=document.getElementById('mduedate');if(mduedate)mduedate.value='';
   document.getElementById('mpri').value='none';
@@ -320,6 +335,16 @@ function onSecChange(){
   document.getElementById('mTag').textContent=m.label;
   document.getElementById('mPerpRow').style.display=m.perp?'flex':'none';
   document.getElementById('mArrRow').style.display=m.arr?'block':'none';
+  document.getElementById('mValRow').style.display=m.val?'block':'none';
+  // Priority choices depend on the section: DBR and Proposals: Out use the four new labels
+  const mpri=document.getElementById('mpri');
+  if(PRI_SECS.includes(sid)){
+    mpri.innerHTML='<option value="none">None</option><option value="prospect">Prospect</option><option value="p3">P3</option><option value="p2">P2</option><option value="tentative">Tentative</option>';
+    mpri.value=(sid==='dbr')?'prospect':'none';
+  }else{
+    mpri.innerHTML='<option value="none">None</option><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option>';
+    mpri.value='none';
+  }
   document.getElementById('mDRRow').style.display=m.dr?'block':'none';
   // CHANGE 2: show time field for hot dates (calls section)
   document.getElementById('mTimeRow').style.display=m.time?'block':'none';
@@ -357,6 +382,8 @@ function confirmM(){
   if(mduedate&&mduedate.value)task.dueDate=efy(mduedate.value);
   // CHANGE 6: save notes
   if(mnotes&&mnotes.value.trim())task.notes=mnotes.value.trim();
+  const mval=document.getElementById('mval');
+  if(SM[sid]&&SM[sid].val&&mval&&mval.value.trim()){const vn=parseVal(mval.value);if(vn!==null)task.value=vn;}
   T[sid].push(task);T[sid]=ss(sid,T[sid]);scheduleSave();closeM();render();
 }
 
@@ -417,8 +444,8 @@ function onDrop(e,destSid,l){
 }
 
 // ── Render helpers ─────────────────────────────────────────────────────────
-function pl(p){return{high:'High',med:'Med',low:'Low',none:'–'}[p]||'–';}
-function bc(p){return{high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn';}
+function pl(p,sid){return PRI_SECS.includes(sid)?(PRI[p]||'–'):({high:'High',med:'Med',low:'Low',none:'–'}[p]||'–');}
+function bc(p,sid){return PRI_SECS.includes(sid)?(PRI[p]?'pri-'+p:'bn'):({high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn');}
 
 function rows(sid,arr){
   const m=SM[sid];if(!m)return'';
@@ -427,13 +454,13 @@ function rows(sid,arr){
   if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items — use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
-    const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=t.priority==='high'&&!t.done&&!ip;
+    const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=hi(sid,t)&&!t.done&&!ip;
     if(ip&&!sp&&filt!=='done'){h+='<div class="divrow perp">Perpetual</div>';sp=true;}
     if(isHi&&!sh&&filt!=='done'){h+='<div class="divrow hi">High Priority</div>';sh=true;}
     if(!ip&&!isHi&&t.text&&!st&&filt!=='done'){h+='<div class="divrow">Today</div>';st=true;}
     const dc=t.done?' done':'',prc=ip?' prow':isHi?' hirow':'';
     const pb=ip?'<span class="perpb">∞</span>':'';
-    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk),onk=(openNotes===k);
+    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk),ov=(openDP==='val_'+k),onk=(openNotes===k);
     let db='';
     // CHANGE 3: show "Decision Due Date" label for proposals_out arrival dates
     const arrLabel = (sid==='proposals_out') ? 'Decision Due Date' : '+ date';
@@ -444,6 +471,10 @@ function rows(sid,arr){
       let lbl=has?((t.travelStart?fmt(t.travelStart):'?')+'–'+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';
       db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;
     }
+    // Value ($) badge: stays with the task as it moves between sections
+    const hasVal=t.value!==undefined&&t.value!==null&&t.value!=='';
+    let valBadge='';
+    if(m.val)valBadge=`<span class="dbadge${hasVal?' set':''}" onclick="tVal('${sid}',${ri})">${hasVal?fmtVal(t.value):'+ value'}</span>`;
     // CHANGE 2: show time badge if present (hot dates / calls section)
     let timeBadge='';
     if(t.time)timeBadge=`<span class="dbadge set" style="cursor:default">@ ${t.time}</span>`;
@@ -467,11 +498,13 @@ function rows(sid,arr){
   <div class="dh"><span></span><span></span><span></span></div>
   <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
   <span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
-  ${pb}${timeBadge}${dueBadge}${db}${notesBadge}<span class="pb ${bc(t.priority||'none')}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none')}</span>
+  ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}<span class="pb ${bc(t.priority||'none',sid)}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none',sid)}</span>
   <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
 </div>`;
     // Arrival date picker row
     if(oa)h+=`<div class="dprow"><span class="dplbl">${sid==='proposals_out'?'Decision Due:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    // Value picker row
+    if(ov)h+=`<div class="dprow"><span class="dplbl">Value ($):</span><input type="text" inputmode="decimal" id="dv_${sid}_${ri}" value="${hasVal?t.value:''}" placeholder="0" onkeydown="if(event.key==='Enter'){cVal('${sid}',${ri})}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cVal('${sid}',${ri})">Set</button>${hasVal?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clVal('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // Travel date range picker row
     if(odr)h+=`<div class="dprow"><span class="dplbl">Start:</span><input type="date" id="ds_${sid}_${ri}" value="${efy(t.travelStart||'')}"/><span class="dplbl">End:</span><input type="date" id="de_${sid}_${ri}" value="${efy(t.travelEnd||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDR('${sid}',${ri})">Set</button>${(t.travelStart||t.travelEnd)?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDR('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // CHANGE 6: inline notes panel
@@ -546,7 +579,7 @@ function render(){
   if(CFG.logo){logoImg.src=CFG.logo;logoImg.style.display='';document.querySelector('.hdr').style.background=CFG.logoBackground||'#1F3864';}
   else{logoImg.style.display='';}
   let ta=0,td=0,th=0;
-  AIDS.forEach(id=>(Array.isArray(T[id])?T[id]:[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(t.priority==='high'&&!t.done)th++;}}));
+  AIDS.forEach(id=>(Array.isArray(T[id])?T[id]:[]).forEach(t=>{if(t.text){ta++;if(t.done)td++;if(hi(id,t)&&!t.done)th++;}}));
   document.getElementById('sT').textContent=ta;
   document.getElementById('sD').textContent=td;
   document.getElementById('sR').textContent=ta-td;
@@ -557,12 +590,7 @@ function render(){
   // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
   if(SM.calls)g.innerHTML+=sec('sec',SM.calls.label,'calls');
   if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
-  if(SM.proposals_prep||SM.proposals_out){
-    g.innerHTML+=`<div class="pwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Proposals</span></div><div class="scols">
-      <div class="scol"><div class="scholdr"><span>${SM.proposals_prep?SM.proposals_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('proposals_prep')">+ Add</button></div>${rows('proposals_prep',T.proposals_prep||[])}</div>
-      <div class="scol"><div class="scholdr"><span>${SM.proposals_out?SM.proposals_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('proposals_out')">+ Add</button></div>${rows('proposals_out',T.proposals_out||[])}</div>
-    </div></div>`;
-  }
+  if(SM.proposals_out)g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');
 if(SM.contracts_prep||SM.contracts_out||SM.contracts_closed){
     g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols3">
       <div class="scol"><div class="scholdr"><span>${SM.contracts_prep?SM.contracts_prep.label:'Prep'}</span><button class="scholdr-add" onclick="openAdd('contracts_prep')">+ Add</button></div>${rows('contracts_prep',T.contracts_prep||[])}</div>
@@ -572,7 +600,8 @@ if(SM.contracts_prep||SM.contracts_out||SM.contracts_closed){
   }
   // CHANGE 4: Tasks section — no page-break CSS anywhere
   if(SM.tasks)g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
-  if(SM.prospecting)g.innerHTML+=prosCols();
+  if(SM.prospecting)g.innerHTML+=sec('sec',SM.prospecting.label,'prospecting');
+  if(SM.one_on_one)g.innerHTML+=sec('sec',SM.one_on_one.label,'one_on_one');
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
@@ -596,7 +625,9 @@ async function generateRecap(){
     lines.push(m.label+':');
     active.forEach(t=>{
       let line=' - '+t.text;
-      if(t.priority==='high')line+=' [HIGH PRIORITY]';
+      if(hi(sid,t))line+=' [HIGH PRIORITY]';
+      if(PRI_SECS.includes(sid)&&PRI[t.priority])line+=' ['+PRI[t.priority]+']';
+      if(t.value)line+=' (value: '+fmtVal(t.value)+')';
       if(t.perpetual)line+=' [perpetual]';
       if(t.arrival)line+=' (arrival: '+fmt(t.arrival)+')';
       if(t.travelStart||t.travelEnd)line+=' (travel: '+(t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')+')';
