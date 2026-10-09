@@ -4,12 +4,15 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Jonathan's Daily Task List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Italiana&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;color:#1a1a1a}
+body{font-family:'Roboto',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5;min-height:100vh;color:#1a1a1a}
 .app{max-width:980px;margin:0 auto;padding:16px}
 .hdr{background:#1F3864;border-radius:10px;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
-.hdr-left h1{font-size:20px;font-weight:600;color:#fff;line-height:1.2}
+.hdr-left h1{font-family:'Italiana','Gramers Light',Georgia,serif;font-size:26px;font-weight:400;letter-spacing:.02em;color:#fff;line-height:1.2}
 .hdr-left .subdate{font-size:13px;color:#b8c8dc;margin-top:3px}
 .hdr-logo img{height:44px;opacity:.95}
 .hdr-logo{text-align:right}
@@ -29,15 +32,19 @@ button:hover{background:#f5f5f5}
 .sync-status.saved{color:#27ae60;border-color:#b8e4c9}
 .sync-status.error{color:#c0392b;border-color:#e8b4b0}
 .dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
-.recap-strip{border-left:4px solid #185FA5;padding:9px 13px;margin-bottom:14px;background:#eef4fb;border-radius:0 8px 8px 0}
-.recap-label{font-size:10px;font-weight:600;color:#185FA5;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
-.recap-text{font-size:13px;color:#1a1a1a;line-height:1.65;outline:none;min-height:20px}
-.recap-text:focus{background:#e4edf8;border-radius:4px;padding:2px 4px}
-.recap-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-.recap-gen-btn{font-size:11px;padding:3px 10px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-family:inherit;transition:background .15s}
-.recap-gen-btn:hover{background:#0c447c}
-.recap-gen-btn:disabled{background:#aaa;cursor:not-allowed}
-.recap-gen-btn.loading{background:#888}
+.pillar{border-left:4px solid #b08d57;padding:11px 15px 12px;margin-bottom:14px;background:#fbf8f2;border-radius:0 8px 8px 0}
+.pillar-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.pillar-kicker{font-size:10px;font-weight:500;color:#8a6d3b;text-transform:uppercase;letter-spacing:.12em}
+.pillar-name{font-family:'Italiana','Gramers Light',Georgia,serif;font-size:21px;color:#111;line-height:1.2;margin-top:2px}
+.pillar-date{font-size:11px;color:#7a7a7a;margin-top:2px}
+.pillar-btns{display:flex;gap:6px}
+.pillar-btns button{font-size:11px;padding:3px 10px}
+.pillar-btns button:disabled{opacity:.5;cursor:not-allowed}
+.pillar-text{font-size:13px;color:#1a1a1a;line-height:1.65;outline:none;min-height:20px}
+.pillar-text p{margin:0 0 8px 0}
+.pillar-text p:last-child{margin-bottom:0}
+.pillar-text p.pil-head{font-weight:500;font-size:14px;color:#111}
+.pillar-text:focus{background:#f3ecdd;border-radius:4px;padding:2px 4px}
 .stats{display:flex;gap:14px;margin-bottom:12px;flex-wrap:wrap}
 .stat{font-size:12px;color:#666}
 .stat strong{color:#1a1a1a;font-weight:600}
@@ -47,7 +54,7 @@ button:hover{background:#f5f5f5}
 .sfull{grid-column:1/-1}
 .shead{display:flex;align-items:center;padding:8px 12px;background:#f7f8fa;border-bottom:1px solid #e0e4ea;cursor:pointer;user-select:none;transition:background .15s}
 .shead:hover{background:#eef2f8}
-.stitle{font-size:13px;font-weight:600;color:#1F3864;flex:1}
+.stitle{font-size:13px;font-weight:500;letter-spacing:.01em;color:#1F3864;flex:1}
 .ssub{font-size:11px;color:#888;margin-left:5px;font-weight:400}
 .shead-add{font-size:11px;padding:2px 9px;background:#185FA5;color:#fff;border:none;border-radius:5px;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .shead-add:hover{background:#0c447c}
@@ -75,6 +82,7 @@ button:hover{background:#f5f5f5}
 .tspan{font-size:12.5px;color:#1a1a1a;word-break:break-word;cursor:text;flex:1;min-width:0}
 .tedit{flex:1;font-size:12.5px;color:#1a1a1a;background:#eef4fb;border:1.5px solid #378ADD;border-radius:5px;padding:2px 7px;font-family:inherit;outline:none;min-width:0}
 .pb{font-size:10px;padding:1px 6px;border-radius:5px;font-weight:600;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.pb.lead{min-width:58px;text-align:center}
 .bh{background:#fdecea;color:#c0392b}.bm{background:#fef9ec;color:#b7770d}.bl{background:#eafaf1;color:#1e8449}.bn{background:#f5f5f5;color:#999}
 .pri-prospect{background:#e8eef7;color:#2c4a7c}.pri-p3{background:#eaf5ea;color:#2e6b34}.pri-p2{background:#fff1dc;color:#9a5b00}.pri-tentative{background:#f1e8fa;color:#6a3d99}
 .perpb{font-size:10px;padding:1px 6px;border-radius:5px;font-weight:600;white-space:nowrap;background:#e4edf8;color:#185FA5;flex-shrink:0}
@@ -135,12 +143,19 @@ button:hover{background:#f5f5f5}
       <img src="hotel_polaris_logo_white.png" alt="Hotel Polaris" onerror="this.style.display='none'"/>
     </div>
   </div>
-  <div class="recap-strip">
-    <div class="recap-header">
-      <span class="recap-label">Daily recap</span>
-      <button class="recap-gen-btn" id="recapGenBtn" onclick="generateRecap()">Generate with AI</button>
+  <div class="pillar">
+    <div class="pillar-top">
+      <div>
+        <div class="pillar-kicker">The James Daily Pillar</div>
+        <div class="pillar-name" id="pillarName">Loading</div>
+        <div class="pillar-date" id="pillarDate"></div>
+      </div>
+      <div class="pillar-btns">
+        <button id="pillarCopyBtn" onclick="pillarCopy()">Copy to share</button>
+        <button id="pillarGenBtn" onclick="pillarRedraft()">Redraft</button>
+      </div>
     </div>
-    <div class="recap-text" id="recapText" contenteditable="true" spellcheck="false">Click Generate with AI to create your daily recap, or click here to type it manually.</div>
+    <div class="pillar-text" id="pillarText" contenteditable="true" spellcheck="false"></div>
   </div>
   <div class="toolbar">
     <button class="fbtn" id="fAll" onclick="sf('all')">All</button>

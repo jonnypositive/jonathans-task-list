@@ -26,7 +26,6 @@ function getSM() {
     culture:        {label:'Culture Club',                  hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     affinity:       {label:'Sales Manager Affinity',        hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     travel:         {label:'Travel',                        hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:false},
-    daily_recap:    {label:'Daily Recap',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     // NOTE: "notes" section intentionally removed (Change #5)
   };
   const sm = {};
@@ -158,7 +157,6 @@ const INIT={
     {text:'Connect Fall Marketplace Tampa',done:false,priority:'none',travelStart:'2026-08-24',travelEnd:'2026-08-26'},
     {text:'Beyond Dallas and Houston',done:false,priority:'none',travelStart:'2026-09-07',travelEnd:'2026-09-10'},
   ],
-  daily_recap:[],
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -184,7 +182,6 @@ async function loadFromCloud(){
         T=d.tasks;
         if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
         AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
-        if(d.recap)document.getElementById('recapText').innerHTML=d.recap;
         setSyncStatus('saved','Synced');
         return;
       }
@@ -206,17 +203,16 @@ async function loadFromCloud(){
 }
 async function saveToCloud(){
   setSyncStatus('syncing','Saving...');
-  const recap=document.getElementById('recapText').innerHTML;
   try{
     const r=await fetch('/.netlify/functions/data',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({tasks:T,recap})
+      body:JSON.stringify({tasks:T})
     });
     if(r.ok){setSyncStatus('saved','Saved');return;}
   }catch(e){}
   localStorage.setItem('jdtl_v5',JSON.stringify(T));
-  setSyncStatus('error','Cloud unavailable — saved locally');
+  setSyncStatus('error','Cloud unavailable, saved locally');
 }
 function scheduleSave(){
   clearTimeout(syncTimer);
@@ -395,7 +391,7 @@ document.addEventListener('keydown',e=>{
 });
 
 function exportDoc(){
-  const data={tasks:T,recap:document.getElementById('recapText').innerHTML,config:CFG};
+  const data={tasks:T,pillar:PIL&&PIL.text?{pillar:PIL.pillar,date:PIL.date,text:pilCurrentText()}:null,config:CFG};
   setSyncStatus('syncing','Generating...');
   fetch('/.netlify/functions/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})
     .then(r=>{if(!r.ok)throw new Error('Export failed');return r.blob();})
@@ -444,14 +440,14 @@ function onDrop(e,destSid,l){
 }
 
 // ── Render helpers ─────────────────────────────────────────────────────────
-function pl(p,sid){return PRI_SECS.includes(sid)?(PRI[p]||'–'):({high:'High',med:'Med',low:'Low',none:'–'}[p]||'–');}
+function pl(p,sid){return PRI_SECS.includes(sid)?(PRI[p]||'+ label'):({high:'High',med:'Med',low:'Low',none:'-'}[p]||'-');}
 function bc(p,sid){return PRI_SECS.includes(sid)?(PRI[p]?'pri-'+p:'bn'):({high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn');}
 
 function rows(sid,arr){
   const m=SM[sid];if(!m)return'';
   let src=filt==='active'?arr.map((t,i)=>({...t,_i:i})).filter(t=>!t.done):filt==='done'?arr.map((t,i)=>({...t,_i:i})).filter(t=>t.done&&!t.perpetual):arr;
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'${sid}',this)"`;
-  if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items — use + Add task</div></div>`;
+  if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items. Use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
     const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=hi(sid,t)&&!t.done&&!ip;
@@ -468,7 +464,7 @@ function rows(sid,arr){
     if(m.arr)db=`<span class="dbadge${t.arrival?' set':''}" onclick="tDP('${sid}',${ri})">${t.arrival?arrSetLabel:arrLabel}</span>`;
     if(m.dr){
       const has=t.travelStart||t.travelEnd;
-      let lbl=has?((t.travelStart?fmt(t.travelStart):'?')+'–'+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';
+      let lbl=has?((t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';
       db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;
     }
     // Value ($) badge: stays with the task as it moves between sections
@@ -494,11 +490,13 @@ function rows(sid,arr){
     const ts=t.done?'text-decoration:line-through;color:#aaa;':'';
     const tx=t.text||'<em style="opacity:.3">empty</em>';
     const drag=t.text?'draggable="true"':'';
+    const priBadge=`<span class="pb ${bc(t.priority||'none',sid)}${PRI_SECS.includes(sid)?' lead':''}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none',sid)}</span>`;
+    const leadPri=PRI_SECS.includes(sid)?priBadge:'',trailPri=PRI_SECS.includes(sid)?'':priBadge;
     h+=`<div class="trow${dc}${prc}" data-drag="${k}" ${drag} ondragstart="onDS(event,'${sid}',${ri})" ondragend="onDE()" ondragover="onRDO(event,'${sid}',${ri})" ondragleave="onRDL(event,'${sid}',${ri})">
   <div class="dh"><span></span><span></span><span></span></div>
   <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
-  <span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
-  ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}<span class="pb ${bc(t.priority||'none',sid)}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none',sid)}</span>
+  ${leadPri}<span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
+  ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}${trailPri}
   <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
 </div>`;
     // Arrival date picker row
@@ -605,55 +603,73 @@ if(SM.contracts_prep||SM.contracts_out||SM.contracts_closed){
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
-  if(SM.daily_recap)g.innerHTML+=sec('sfull',SM.daily_recap.label,'daily_recap');
   // CHANGE 5: no Notes section rendered
 }
 
-// ── AI Recap ───────────────────────────────────────────────────────────────
-async function generateRecap(){
-  const btn=document.getElementById('recapGenBtn');
-  const el=document.getElementById('recapText');
-  btn.disabled=true;btn.classList.add('loading');btn.textContent='Generating...';
-  el.innerHTML='<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
-  const tz=CFG.timezone||'America/Denver';
-  const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric',timeZone:tz});
-  const lines=[];
-  AIDS.forEach(sid=>{
-    const m=SM[sid];if(!m)return;
-    const active=(T[sid]||[]).filter(t=>t.text&&!t.done);
-    if(!active.length)return;
-    lines.push(m.label+':');
-    active.forEach(t=>{
-      let line=' - '+t.text;
-      if(hi(sid,t))line+=' [HIGH PRIORITY]';
-      if(PRI_SECS.includes(sid)&&PRI[t.priority])line+=' ['+PRI[t.priority]+']';
-      if(t.value)line+=' (value: '+fmtVal(t.value)+')';
-      if(t.perpetual)line+=' [perpetual]';
-      if(t.arrival)line+=' (arrival: '+fmt(t.arrival)+')';
-      if(t.travelStart||t.travelEnd)line+=' (travel: '+(t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')+')';
-      lines.push(line);
-    });
-  });
-  const owner=CFG.ownerName||'the user';
-  const sectionNotes="Note: Hot Dates and In-House Groups refers to clients who are physically staying at or visiting the hotel — this is NOT travel for the report owner, do not treat these dates as travel items.";
-  const prompt=`Today is ${today}. You are a helpful assistant reviewing ${owner}'s daily task list. Based on the following active tasks, write a practical daily recap of 4-6 sentences highlighting: immediate priorities, time-sensitive items, upcoming travel, and overall workload. ${sectionNotes} Respond ONLY with a JSON object like this (no other text): {"paragraphs":["Sentence one.","Sentence two.","Sentence three.","Sentence four."]} Task list: ${lines.join('\n')}`;
-  try{
-    const resp=await fetch('/.netlify/functions/recap',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt})});
-    const data=await resp.json();
-    const text=data.text;
-    if(text){
-      let paras=[];
-      try{const j=JSON.parse(text.substring(text.indexOf('{'),text.lastIndexOf('}')+1));if(j.paragraphs&&Array.isArray(j.paragraphs))paras=j.paragraphs.filter(p=>p.trim());}
-      catch(e){paras=text.split(/\.\s+(?=[A-Z])/).map((p,i,a)=>p.trim()+(i<a.length-1?'.':'')).filter(p=>p.length>1);}
-      if(paras.length>0){el.innerHTML=paras.map(p=>'<p style="margin:0 0 8px 0">'+p.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</p>').join('');}
-      else{el.textContent=text;}
-      scheduleSave();
-    }else{el.textContent='Unable to generate recap — please try again.';}
-  }catch(err){el.textContent='Unable to generate recap — check your connection.';}
-  btn.disabled=false;btn.classList.remove('loading');btn.textContent='Generate with AI';
+// ── The James Daily Pillar ─────────────────────────────────────────────────
+let PIL=null;
+function pilEl(){return document.getElementById('pillarText');}
+function pilEsc(x){return String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function pilRender(msg){
+  const nm=document.getElementById('pillarName'),dt=document.getElementById('pillarDate'),el=pilEl();
+  if(!PIL||!PIL.text){
+    nm.textContent='Today\'s pillar';dt.textContent='';
+    el.innerHTML='<p style="color:#888;font-style:italic">'+pilEsc(msg||'The message is drafted at 8 am each weekday. Use Redraft to create it now, or click here to write your own.')+'</p>';
+    return;
+  }
+  nm.textContent=PIL.pillar||'';
+  dt.textContent=PIL.date?new Date(PIL.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}):'';
+  el.innerHTML=PIL.text.split(/\n\s*\n/).filter(p=>p.trim()).map((p,i)=>'<p'+(i===0?' class="pil-head"':'')+'>'+pilEsc(p.trim())+'</p>').join('');
 }
-
-document.getElementById('recapText').addEventListener('blur',()=>scheduleSave());
+function pilCurrentText(){
+  const el=pilEl();
+  const kids=Array.from(el.children).map(c=>(c.textContent||'').trim()).filter(Boolean);
+  return (kids.length?kids:[(el.textContent||'').trim()].filter(Boolean)).join('\n\n');
+}
+function pilEtNow(){
+  const tz=CFG.timezone||'America/New_York';
+  const o={};
+  new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hour12:false,weekday:'short'}).formatToParts(new Date()).forEach(p=>{o[p.type]=p.value;});
+  return{iso:o.year+'-'+o.month+'-'+o.day,hour:(+o.hour)%24,weekday:o.weekday!=='Sat'&&o.weekday!=='Sun'};
+}
+async function pilGenerate(force){
+  const btn=document.getElementById('pillarGenBtn');
+  btn.disabled=true;btn.textContent='Drafting...';
+  try{
+    const r=await fetch('/.netlify/functions/pillar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'generate',force:!!force})});
+    const d=await r.json();
+    if(r.ok&&d&&d.text){PIL=d;pilRender();}
+    else pilRender(PIL&&PIL.text?null:'Could not draft the message right now. Click Redraft to try again, or click here to write your own.');
+  }catch(e){if(!PIL||!PIL.text)pilRender('Could not reach the drafting service. Click Redraft to try again.');}
+  btn.disabled=false;btn.textContent='Redraft';
+}
+function pillarRedraft(){
+  if(PIL&&PIL.edited&&!confirm('Redrafting replaces your edits to today\'s message. Continue?'))return;
+  pilGenerate(true);
+}
+function pillarCopy(){
+  const head=(PIL&&PIL.pillar?'The James Daily Pillar: '+PIL.pillar+'\n\n':'');
+  const txt=head+pilCurrentText();
+  const done=()=>{const b=document.getElementById('pillarCopyBtn');b.textContent='Copied';setTimeout(()=>{b.textContent='Copy to share';},1500);};
+  try{navigator.clipboard.writeText(txt).then(done,()=>{});}catch(e){}
+}
+async function pilSave(){
+  const text=pilCurrentText();
+  if(!text||(PIL&&text===PIL.text))return;
+  PIL=Object.assign({},PIL||{},{text,edited:true});
+  try{await fetch('/.netlify/functions/pillar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'save',text})});}catch(e){}
+}
+async function loadPillar(){
+  try{
+    const r=await fetch('/.netlify/functions/pillar');
+    if(r.ok){const d=await r.json();if(d&&d.text)PIL=d;}
+  }catch(e){}
+  pilRender();
+  // Safety net: if the 8 am draft has not landed yet on a weekday, draft it now
+  const n=pilEtNow();
+  if(n.weekday&&n.hour>=8&&(!PIL||PIL.date!==n.iso))pilGenerate(false);
+}
+pilEl().addEventListener('blur',pilSave);
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init(){
@@ -664,10 +680,6 @@ async function init(){
   await loadFromCloud();
   sf('all');
   render();
-  setTimeout(()=>{
-    const recapEl=document.getElementById('recapText');
-    if(recapEl)recapEl.innerHTML='<p style="margin:0;color:#888;font-style:italic;">Generating your daily recap…</p>';
-    generateRecap();
-  },1500);
+  loadPillar();
 }
 init();

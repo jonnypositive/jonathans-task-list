@@ -10,3 +10,6 @@
   [headers.values]
     X-Frame-Options = "SAMEORIGIN"
     X-Content-Type-Options = "nosniff"
+
+[functions."pillar-daily"]
+  schedule = "0 12,13 * * 1-5"
