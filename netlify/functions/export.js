@@ -21,7 +21,7 @@ exports.handler = async (event) => {
     // ── Load data from POST body ───────────────────────────────────────────
     const body = JSON.parse(event.body);
     const T    = body.tasks  || {};
-    const recap = body.recap || '';
+    const pillar = body.pillar && body.pillar.text ? body.pillar : null;
 
     // DBR and Proposals: Out use Prospect / P3 / P2 / Tentative. Old High / Med / Low values
     // are not shown there (matches the on-screen app); the stored data itself is untouched.
@@ -100,7 +100,10 @@ exports.handler = async (event) => {
     }
 
     // ── Design constants ───────────────────────────────────────────────────
-    const FONT = 'Arial';
+    // The James brand typography: Gramers Light (headline), Roboto Medium (sub headline), Roboto Regular (body)
+    const FONT = 'Roboto';
+    const HEAD = 'Gramers Light';
+    const SUBF = 'Roboto Medium';
     const W    = 10800;   // content width DXA (0.5" margins each side)
     const HW   = 5400;    // half width
     const TW   = 3600;    // third width (equal thirds)
@@ -136,9 +139,16 @@ exports.handler = async (event) => {
       const ch = [];
       ch.push(new TextRun({ text: '☐ ', font: 'Segoe UI Symbol', size: 17 }));
 
-      // Task text — bold if high priority
       const isHigh = t.priority === 'high' || t.p === 'P1';
       const label  = t.text || t.t || '';
+
+      // New labels (Prospect / P3 / P2 / Tentative) lead the line, before the task name
+      const leadColors = { prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
+      const leadNames  = { prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
+      const hasLead = !!leadNames[t.priority];
+      if (hasLead) ch.push(new TextRun({ text: '[' + leadNames[t.priority] + '] ', font: FONT, size: 14, bold: true, color: leadColors[t.priority] }));
+
+      // Task text — bold if high priority
       ch.push(new TextRun({ text: label, font: FONT, size: 17, bold: isHigh }));
 
       // Perpetual marker
@@ -149,7 +159,7 @@ exports.handler = async (event) => {
                      prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
       const newColors = { prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
       const pLbl = pMap[t.priority || t.p] || '';
-      if (pLbl) {
+      if (pLbl && !hasLead) {
         const pColor = newColors[t.priority] || (isHigh ? '9B1111' : '8B5E00');
         ch.push(new TextRun({ text: ' [' + pLbl + ']', font: FONT, size: 14, bold: true, color: pColor }));
       }
@@ -166,7 +176,7 @@ exports.handler = async (event) => {
 
       // Travel date range
       if (showDR && (t.travelStart || t.travelEnd)) {
-        const r = (t.travelStart ? fmt(t.travelStart) : '?') + '–' + (t.travelEnd ? fmt(t.travelEnd) : '?');
+        const r = (t.travelStart ? fmt(t.travelStart) : '?') + ' to ' + (t.travelEnd ? fmt(t.travelEnd) : '?');
         ch.push(new TextRun({ text: ' ' + r, font: FONT, size: 14, color: '2E6B00', bold: true }));
       }
 
@@ -221,7 +231,7 @@ exports.handler = async (event) => {
         margins: { top: 60, bottom: 60, left: 120, right: 120 },
         children: [new Paragraph({
           keepNext: true,
-          children: [new TextRun({ text: title, font: FONT, size: 18, bold: true, color: 'FFFFFF' })],
+          children: [new TextRun({ text: title, font: HEAD, size: 22, color: 'FFFFFF' })],
         })],
       });
     }
@@ -233,7 +243,7 @@ exports.handler = async (event) => {
         shading: { fill: C.sub, type: ShadingType.CLEAR },
         margins: { top: 40, bottom: 40, left: 100, right: 100 },
         children: [new Paragraph({
-          children: [new TextRun({ text: title, font: FONT, size: 16, bold: true, color: 'FFFFFF' })],
+          children: [new TextRun({ text: title, font: SUBF, size: 16, color: 'FFFFFF' })],
         })],
       });
     }
@@ -407,21 +417,23 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, HW], rows });
     }
 
-    // Daily Recap
-    function buildRecap(recapText) {
-      if (!recapText || !recapText.trim()) return null;
-      const plain = recapText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      const paragraphs = plain.split(/\n\n+|\n/).filter(p => p.trim().length > 0);
+    // The James Daily Pillar
+    function buildPillar(p) {
+      if (!p || !p.text || !p.text.trim()) return null;
+      const paras = p.text.split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+      const title = 'The James Daily Pillar' + (p.pillar ? ': ' + p.pillar : '');
       const rows = [];
-      rows.push(new TableRow({ cantSplit: true, children: [hCell('Daily Recap', W)] }));
-      paragraphs.forEach((para, i) => {
+      rows.push(new TableRow({ cantSplit: true, children: [hCell(title, W)] }));
+      paras.forEach((para, i) => {
         rows.push(new TableRow({ children: [new TableCell({
           borders: B,
           width: { size: W, type: WidthType.DXA },
-          shading: { fill: i % 2 === 1 ? C.alt : C.white, type: ShadingType.CLEAR },
-          margins: { top: 36, bottom: 36, left: 120, right: 120 },
+          shading: { fill: 'FBF8F2', type: ShadingType.CLEAR },
+          margins: { top: 60, bottom: 60, left: 140, right: 140 },
           children: [new Paragraph({ spacing: { before: 0, after: 0 }, children: [
-            new TextRun({ text: para.trim(), font: FONT, size: 16, color: '222222' })
+            i === 0
+              ? new TextRun({ text: para, font: SUBF, size: 20, color: '111111' })
+              : new TextRun({ text: para, font: FONT, size: 17, color: '222222' })
           ]})],
         })] }));
       });
@@ -456,7 +468,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
           shading: { fill: '1F3864', type: ShadingType.CLEAR },
           margins: { top: 80, bottom: 80, left: 160, right: 80 },
           children: [
-            new Paragraph({ children: [new TextRun({ text: "Jonathan's Daily Task List", font: FONT, size: 28, bold: true, color: 'FFFFFF' })] }),
+            new Paragraph({ children: [new TextRun({ text: "Jonathan's Daily Task List", font: HEAD, size: 34, color: 'FFFFFF' })] }),
             new Paragraph({ spacing: { before: 30 }, children: [new TextRun({ text: DATE_TIME_STR, font: FONT, size: 18, color: 'B8C8DC' })] }),
           ],
         }),
@@ -483,7 +495,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     // Client Dates (key: 'calls') + DBR side by side
     addSec(children, buildDual(
       'Client Dates',              T.calls          || [], false, true,
-      'DBR — ' + getDBRDate(),     T.dbr            || [], true,  false
+      'DBR: ' + getDBRDate(),     T.dbr            || [], true,  false
     ));
 
     // Proposals: Out (full width)
@@ -506,7 +518,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     addSec(children, buildTwoCol('Upcoming Industry Events and Travel', T.travel || [], false, true, false, 'travel'));
 
     // Daily Recap
-    addSec(children, buildRecap(recap));
+    addSec(children, buildPillar(pillar));
 
     // ── Assemble document ──────────────────────────────────────────────────
     const doc = new Document({
