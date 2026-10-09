@@ -23,6 +23,14 @@ exports.handler = async (event) => {
     const T    = body.tasks  || {};
     const recap = body.recap || '';
 
+    // DBR and Proposals: Out use Prospect / P3 / P2 / Tentative. Old High / Med / Low values
+    // are not shown there (matches the on-screen app); the stored data itself is untouched.
+    ['dbr', 'proposals_out'].forEach(k => {
+      if (Array.isArray(T[k])) T[k] = T[k].map(t =>
+        (['high', 'med', 'low'].includes(t.priority) || ['P1', 'P2', 'P3'].includes(t.p))
+          ? { ...t, priority: 'none', p: undefined } : t);
+    });
+
     // ── Date / time helpers ────────────────────────────────────────────────
     const TZ  = 'America/New_York';
     const NOW = new Date();
@@ -137,11 +145,18 @@ exports.handler = async (event) => {
       if (t.perpetual) ch.push(new TextRun({ text: ' [∞]', font: FONT, size: 14, bold: true, color: '1F4E79' }));
 
       // Priority badge
-      const pMap = { high: 'HIGH', P1: 'HIGH', med: 'MED', P2: 'MED', low: 'LOW', P3: '' };
+      const pMap = { high: 'HIGH', P1: 'HIGH', med: 'MED', P2: 'MED', low: 'LOW', P3: '',
+                     prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
+      const newColors = { prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
       const pLbl = pMap[t.priority || t.p] || '';
       if (pLbl) {
-        const pColor = isHigh ? '9B1111' : '8B5E00';
+        const pColor = newColors[t.priority] || (isHigh ? '9B1111' : '8B5E00');
         ch.push(new TextRun({ text: ' [' + pLbl + ']', font: FONT, size: 14, bold: true, color: pColor }));
+      }
+
+      // Dollar value (follows the task through DBR, Proposals and Contracts)
+      if (t.value !== undefined && t.value !== null && t.value !== '') {
+        ch.push(new TextRun({ text: ' $' + Number(t.value).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(t.value)) ? 0 : 2, maximumFractionDigits: 2 }), font: FONT, size: 14, color: '1E5E2E', bold: true }));
       }
 
       // Arrival date (proposals/contracts)
@@ -260,6 +275,15 @@ exports.handler = async (event) => {
         ]}));
       }
 return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, HW], rows });
+    }
+
+    // Single full-width column (used for Proposals: Out)
+    function buildFull(title, tasks, showArr) {
+      const active = tasks.filter(t => !t.done && (t.text || t.t));
+      if (!active.length) return null;
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title, W, 1)] })];
+      active.forEach((t, i) => rows.push(new TableRow({ children: [mkCell(t, W, showArr, false, false, i)] })));
+      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [W], rows });
     }
 
     // Contracts (3-way): Prep / Out / Closed side-by-side with sub-headers
@@ -462,10 +486,8 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       'DBR — ' + getDBRDate(),     T.dbr            || [], true,  false
     ));
 
-    // Proposals
-    addSec(children, buildSplit(
-      'Proposals', 'Prep', T.proposals_prep || [], 'Out', T.proposals_out || [], true
-    ));
+    // Proposals: Out (full width)
+    addSec(children, buildFull('Proposals: Out', T.proposals_out || [], true));
 
  // Contracts
     addSec(children, buildSplit3(
@@ -474,8 +496,11 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     // Tasks (with due dates)
     addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true, null));
 
-    // Prospecting
-    addSec(children, buildTwoCol('Prospecting', T.prospecting || [], false, false, false));
+    // Prospecting (single column) + One on One Tasks side by side
+    addSec(children, buildDual(
+      'Prospecting',       T.prospecting || [], false, false,
+      'One on One Tasks',  T.one_on_one  || [], false, false
+    ));
 
        // Travel (with 30/60-day dividers)
     addSec(children, buildTwoCol('Upcoming Industry Events and Travel', T.travel || [], false, true, false, 'travel'));
