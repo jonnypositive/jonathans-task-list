@@ -31,6 +31,13 @@ exports.handler = async (event) => {
           ? { ...t, priority: 'none', p: undefined } : t);
     });
 
+    // Sort DBR and Proposals: Out the same way as the app (Definite first; Proposals then Tentative, P2, P3, Prospect)
+    const RANK_PO = { definite: 0, tentative: 1, p2: 2, p3: 3, prospect: 4, none: 5 };
+    const rankOf = (sid, t) => { const p = t.priority || 'none'; if (p === 'definite') return 0; return sid === 'proposals_out' ? (RANK_PO[p] !== undefined ? RANK_PO[p] : 5) : 1; };
+    ['dbr', 'proposals_out'].forEach(k => {
+      if (Array.isArray(T[k])) T[k] = T[k].map((t, i) => ({ t, i, r: rankOf(k, t) })).sort((a, b) => a.r - b.r || a.i - b.i).map(o => o.t);
+    });
+
     // ── Date / time helpers ────────────────────────────────────────────────
     const TZ  = 'America/New_York';
     const NOW = new Date();
@@ -89,16 +96,6 @@ exports.handler = async (event) => {
       return 'Due: ' + parseInt(p[1], 10) + '/' + parseInt(p[2], 10) + '/' + String(parseInt(p[0], 10)).slice(-2);
     }
 
-    // ── Sort proposals_out by arrival/decision date ────────────────────────
-    if (T.proposals_out) {
-      T.proposals_out.sort((a, b) => {
-        if (!a.arrival && !b.arrival) return 0;
-        if (!a.arrival) return 1;
-        if (!b.arrival) return -1;
-        return new Date(a.arrival) - new Date(b.arrival);
-      });
-    }
-
     // ── Design constants ───────────────────────────────────────────────────
     // The James brand typography: Gramers Light (headline), Roboto Medium (sub headline), Roboto Regular (body)
     const FONT = 'Roboto';
@@ -143,8 +140,8 @@ exports.handler = async (event) => {
       const label  = t.text || t.t || '';
 
       // New labels (Prospect / P3 / P2 / Tentative) lead the line, before the task name
-      const leadColors = { prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
-      const leadNames  = { prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
+      const leadColors = { definite: '7A5A00', prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
+      const leadNames  = { definite: 'DEFINITE', prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
       const hasLead = !!leadNames[t.priority];
       if (hasLead) ch.push(new TextRun({ text: '[' + leadNames[t.priority] + '] ', font: FONT, size: 14, bold: true, color: leadColors[t.priority] }));
 
@@ -156,8 +153,8 @@ exports.handler = async (event) => {
 
       // Priority badge
       const pMap = { high: 'HIGH', P1: 'HIGH', med: 'MED', P2: 'MED', low: 'LOW', P3: '',
-                     prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
-      const newColors = { prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
+                     definite: 'DEFINITE', prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
+      const newColors = { definite: '7A5A00', prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
       const pLbl = pMap[t.priority || t.p] || '';
       if (pLbl && !hasLead) {
         const pColor = newColors[t.priority] || (isHigh ? '9B1111' : '8B5E00');
@@ -440,6 +437,43 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [W], rows });
     }
 
+    // Pipeline tally by priority label
+    function buildPipeline() {
+      const keys  = ['definite', 'tentative', 'p2', 'p3', 'prospect'];
+      const names = { definite: 'Definite', tentative: 'Tentative', p2: 'P2', p3: 'P3', prospect: 'Prospect' };
+      const cols  = { definite: '7A5A00', tentative: '6A3D99', p2: '9A5B00', p3: '2E6B34', prospect: '2C4A7C' };
+      const tot = {}; keys.forEach(k => { tot[k] = { n: 0, v: 0 }; });
+      ['dbr', 'proposals_out'].forEach(sec => (T[sec] || []).forEach(t => {
+        if (!t.text || t.done || !tot[t.priority]) return;
+        tot[t.priority].n++;
+        const v = Number(t.value); if (!isNaN(v)) tot[t.priority].v += v;
+      }));
+      const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
+      const cnt = n => n + (n === 1 ? ' task' : ' tasks');
+      const widths = [5400, 2400, 3000];
+      function cell(text, w, o) {
+        o = o || {};
+        return new TableCell({
+          borders: B, width: { size: w, type: WidthType.DXA },
+          shading: { fill: o.fill || C.white, type: ShadingType.CLEAR },
+          margins: { top: 40, bottom: 40, left: 120, right: 120 },
+          children: [new Paragraph({ alignment: o.right ? AlignmentType.RIGHT : AlignmentType.LEFT,
+            children: [new TextRun({ text, font: o.sub ? SUBF : FONT, size: 17, bold: !!o.bold, color: o.color || '222222' })] })],
+        });
+      }
+      const rowOf = (label, n, v, o) => new TableRow({ cantSplit: true, children: [
+        cell(label, widths[0], Object.assign({}, o)), cell(cnt(n), widths[1], Object.assign({ right: true }, o, { color: '555555' })),
+        cell(money(v), widths[2], Object.assign({ right: true }, o, { color: '1E5E2E', bold: true })) ] });
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell('Pipeline', W, 3)] })];
+      const line = k => rows.push(rowOf(names[k], tot[k].n, tot[k].v, { color: cols[k], bold: true }));
+      line('definite'); line('tentative'); line('p2');
+      rows.push(rowOf('Tentative + P2', tot.tentative.n + tot.p2.n, tot.tentative.v + tot.p2.v, { fill: 'F2F2F2', bold: true }));
+      line('p3'); line('prospect');
+      const all = keys.reduce((a, k) => ({ n: a.n + tot[k].n, v: a.v + tot[k].v }), { n: 0, v: 0 });
+      rows.push(rowOf('Total pipeline', all.n, all.v, { fill: 'FBF8F2', bold: true }));
+      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: widths, rows });
+    }
+
     // ── Load logo ──────────────────────────────────────────────────────────
     let logoData = null;
     const logoCandidates = [
@@ -492,6 +526,9 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     children.push(sp(90));
 
     // ── Sections ───────────────────────────────────────────────────────────
+    // Pipeline tally (open items in DBR and Proposals: Out)
+    addSec(children, buildPipeline());
+
     // Client Dates (key: 'calls') + DBR side by side
     addSec(children, buildDual(
       'Client Dates',              T.calls          || [], false, true,
@@ -502,8 +539,8 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     addSec(children, buildFull('Proposals: Out', T.proposals_out || [], true));
 
  // Contracts
-    addSec(children, buildSplit3(
-      'Contracts', 'Prep', T.contracts_prep || [], 'Out', T.contracts_out || [], 'Closed', T.contracts_closed || [], true
+    addSec(children, buildSplit(
+      'Contracts', 'Out', T.contracts_out || [], 'Closed', T.contracts_closed || [], true
     ));
     // Tasks (with due dates)
     addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true, null));
