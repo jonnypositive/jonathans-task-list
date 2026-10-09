@@ -14,7 +14,7 @@
     },
     "culture": { "enabled": false },
     "affinity": { "enabled": false },
-    "daily_recap": { "enabled": false }
+  "daily_recap": { "enabled": false },
     "travel": { "label": "Upcoming Industry Events and Travel" }
   },
   "meetings": {
