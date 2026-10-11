@@ -90,7 +90,13 @@ button:hover{background:#f5f5f5}
 .dbadge.set{background:#eafaf1;color:#1e8449;border-style:solid}
 .notes-badge{font-size:10px;padding:2px 7px;border-radius:5px;white-space:nowrap;cursor:pointer;border:1px solid #c8d0dc;background:#f0f4ff;color:#185FA5;flex-shrink:0}
 .notes-badge:hover{background:#dde8ff}
-.delbtn{font-size:12px;opacity:0;color:#aaa;padding:1px 4px;border:none;background:transparent;cursor:pointer;flex-shrink:0}
+.delbtn{font-size:12px;opacity:0;color:#aaa;padding:1px 4px;border:none;background:transparent;cursor:pointer;flex-shrink:0;width:20px;text-align:center}
+.pcol{font-size:10px;padding:2px 4px;border-radius:5px;white-space:nowrap;cursor:pointer;flex-shrink:0;text-align:center;box-sizing:border-box;border:1px dashed transparent;overflow:hidden;text-overflow:ellipsis}
+.pc-dec{width:84px;background:#fdecee;color:#8b2635;border-color:#efc3c9}.pc-arr{width:84px;background:#e6f0fb;color:#1f5fa8;border-color:#b9d3ef}.pc-val{width:96px;background:#e8f5ea;color:#1e5e2e;border-color:#b7dcbd}
+.pcol.empty{background:#f7f8fa;color:#999;border-color:#c8d0dc}
+.colhead{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:4px 9px;background:#fafbfc;border-bottom:1px solid #e0e4ea}
+.colhead span{font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;text-align:center;flex-shrink:0}
+.colhead .ch-dec{width:84px;color:#8b2635}.colhead .ch-arr{width:84px;color:#1f5fa8}.colhead .ch-val{width:96px;color:#1e5e2e}.colhead .ch-del{width:20px}
 .trow:hover .delbtn{opacity:1}
 .dprow{display:flex;align-items:center;gap:7px;padding:6px 9px 7px 36px;background:#f7f8fa;border-top:1px solid #f0f2f5;flex-wrap:wrap}
 .dprow input[type=date],.dprow input[type=text]{font-size:12px;padding:4px 8px;border:1px solid #c8d0dc;border-radius:6px;background:#fff;color:#1a1a1a;font-family:inherit;outline:none}
@@ -212,7 +218,8 @@ button:hover{background:#f5f5f5}
             <input type="date" id="mduedate"/>
           </div>
           <div id="mPerpRow" class="mchk" style="display:none"><input type="checkbox" id="mperp"/><span>Perpetual (always stays on list)</span></div>
-          <div id="mArrRow" style="display:none" class="mfield"><label class="mlbl">Arrival date <span style="font-weight:400;color:#aaa">(optional)</span></label><input type="date" id="marr"/></div>
+          <div id="mArrRow" style="display:none" class="mfield"><label class="mlbl" id="marrLbl">Arrival date <span style="font-weight:400;color:#aaa">(optional)</span></label><input type="date" id="marr"/></div>
+          <div id="mArrDRow" style="display:none" class="mfield"><label class="mlbl">Arrival date <span style="font-weight:400;color:#aaa">(optional)</span></label><input type="date" id="marrd"/></div>
           <div id="mValRow" style="display:none" class="mfield"><label class="mlbl">Value ($) <span style="font-weight:400;color:#aaa">(optional)</span></label><input type="text" inputmode="decimal" id="mval" placeholder="e.g. 25000"/></div>
           <div id="mDRRow" style="display:none">
             <div class="mrow2">
