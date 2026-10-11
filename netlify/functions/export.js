@@ -132,7 +132,8 @@ exports.handler = async (event) => {
     }
 
     // Build the inline runs for a task row
-    function taskRuns(t, showArr, showDR, showDue, showNotes) {
+    function taskRuns(t, showArr, showDR, showDue, showNotes, opts) {
+      const noMeta = !!(opts && opts.noMeta);
       const ch = [];
       ch.push(new TextRun({ text: '☐ ', font: 'Segoe UI Symbol', size: 17 }));
 
@@ -162,12 +163,12 @@ exports.handler = async (event) => {
       }
 
       // Dollar value (follows the task through DBR, Proposals and Contracts)
-      if (t.value !== undefined && t.value !== null && t.value !== '') {
+      if (!noMeta && t.value !== undefined && t.value !== null && t.value !== '') {
         ch.push(new TextRun({ text: ' $' + Number(t.value).toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(Number(t.value)) ? 0 : 2, maximumFractionDigits: 2 }), font: FONT, size: 14, color: '1E5E2E', bold: true }));
       }
 
       // Arrival date (proposals/contracts)
-      if (showArr && t.arrival) {
+      if (!noMeta && showArr && t.arrival) {
         ch.push(new TextRun({ text: ' Arr: ' + fmt(t.arrival), font: FONT, size: 14, color: '2E6B00', bold: true }));
       }
 
@@ -190,8 +191,8 @@ exports.handler = async (event) => {
       return ch;
     }
 
-    function mkCell(t, w, showArr, showDR, showDue, ri) {
-      const children = [new Paragraph({ children: taskRuns(t, showArr, showDR, showDue) })];
+    function mkCell(t, w, showArr, showDR, showDue, ri, opts) {
+      const children = [new Paragraph({ children: taskRuns(t, showArr, showDR, showDue, false, opts) })];
       // Per-task notes (italic, indented)
       if (t.notes && t.notes.trim()) {
         children.push(new Paragraph({
@@ -282,6 +283,40 @@ exports.handler = async (event) => {
         ]}));
       }
 return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, HW], rows });
+    }
+
+    // Proposals: Out with color-coded Decision Date / Arrival Date / Value columns
+    function buildProposals(tasks) {
+      const active = tasks.filter(t => !t.done && (t.text || t.t));
+      if (!active.length) return null;
+      const cw = [5400, 1800, 1800, 1800];
+      const col = { dec: '8B2635', arr: '1F5FA8', val: '1E5E2E' };
+      const money = v => { const n = Number(v); return '$' + n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
+      function dCell(text, w, color, ri, t, head) {
+        return new TableCell({
+          borders: B, width: { size: w, type: WidthType.DXA },
+          shading: { fill: head ? 'F2F2F2' : tbg(t, ri), type: ShadingType.CLEAR },
+          verticalAlign: VerticalAlign.CENTER,
+          margins: { top: 48, bottom: 48, left: 80, right: 80 },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER,
+            children: [new TextRun({ text: text || '', font: head ? SUBF : FONT, size: head ? 14 : 16, bold: !head, color })] })],
+        });
+      }
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell('Proposals: Out', W, 4)] })];
+      rows.push(new TableRow({ cantSplit: true, children: [
+        dCell('', cw[0], '404040', 0, null, true),
+        dCell('DECISION DATE', cw[1], col.dec, 0, null, true),
+        dCell('ARRIVAL DATE', cw[2], col.arr, 0, null, true),
+        dCell('VALUE', cw[3], col.val, 0, null, true) ] }));
+      active.forEach((t, i) => {
+        const hasV = t.value !== undefined && t.value !== null && t.value !== '';
+        rows.push(new TableRow({ children: [
+          mkCell(t, cw[0], false, false, false, i, { noMeta: true }),
+          dCell(t.arrival ? fmt(t.arrival) : '', cw[1], col.dec, i, t),
+          dCell(t.arrDate ? fmt(t.arrDate) : '', cw[2], col.arr, i, t),
+          dCell(hasV ? money(t.value) : '', cw[3], col.val, i, t) ] }));
+      });
+      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: cw, rows });
     }
 
     // Single full-width column (used for Proposals: Out)
@@ -439,7 +474,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
 
     // Pipeline tally by priority label
     function buildPipeline() {
-      const keys  = ['definite', 'tentative', 'p2', 'p3', 'prospect'];
+      const keys  = ['definite', 'tentative', 'p2', 'p3'];
       const names = { definite: 'Definite', tentative: 'Tentative', p2: 'P2', p3: 'P3', prospect: 'Prospect' };
       const cols  = { definite: '7A5A00', tentative: '6A3D99', p2: '9A5B00', p3: '2E6B34', prospect: '2C4A7C' };
       const tot = {}; keys.forEach(k => { tot[k] = { n: 0, v: 0 }; });
@@ -466,9 +501,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
         cell(money(v), widths[2], Object.assign({ right: true }, o, { color: '1E5E2E', bold: true })) ] });
       const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell('Pipeline', W, 3)] })];
       const line = k => rows.push(rowOf(names[k], tot[k].n, tot[k].v, { color: cols[k], bold: true }));
-      line('definite'); line('tentative'); line('p2');
-      rows.push(rowOf('Tentative + P2', tot.tentative.n + tot.p2.n, tot.tentative.v + tot.p2.v, { fill: 'F2F2F2', bold: true }));
-      line('p3'); line('prospect');
+      line('definite'); line('tentative'); line('p2'); line('p3');
       const all = keys.reduce((a, k) => ({ n: a.n + tot[k].n, v: a.v + tot[k].v }), { n: 0, v: 0 });
       rows.push(rowOf('Total pipeline', all.n, all.v, { fill: 'FBF8F2', bold: true }));
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: widths, rows });
@@ -536,7 +569,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     ));
 
     // Proposals: Out (full width)
-    addSec(children, buildFull('Proposals: Out', T.proposals_out || [], true));
+    addSec(children, buildProposals(T.proposals_out || []));
 
  // Contracts
     addSec(children, buildSplit(
