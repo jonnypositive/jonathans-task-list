@@ -277,6 +277,7 @@ function dbrDate(){
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite','gmcvb']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
+function setPri(sid,idx,val){T[sid][idx].priority=val;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
@@ -529,7 +530,10 @@ function rows(sid,arr,only){
     const ts=t.done?'text-decoration:line-through;color:#aaa;':'';
     const tx=t.text||'<em style="opacity:.3">empty</em>';
     const drag=t.text?'draggable="true"':'';
-    const priBadge=`<span class="pb ${bc(t.priority||'none',sid)}${PRI_SECS.includes(sid)?' lead':''}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none',sid)}</span>`;
+    const curP=t.priority||'none',isP=PRI_SECS.includes(sid);
+    const optList=isP?[['none','No label'],['prospect','Prospect'],['p3','P3'],['p2','P2'],['tentative','Tentative'],['definite','Definite'],['gmcvb','GMCVB']]:[['none','None'],['high','High'],['med','Med'],['low','Low']];
+    const curV=optList.some(o=>o[0]===curP)?curP:'none';
+    const priBadge=`<select class="pb pb-sel ${bc(curV,sid)}${isP?' lead':''}" onchange="setPri('${sid}',${ri},this.value)" title="Priority label">${optList.map(o=>`<option value="${o[0]}"${o[0]===curV?' selected':''}>${o[1]}</option>`).join('')}</select>`;
     const leadPri=PRI_SECS.includes(sid)?priBadge:'',trailPri=PRI_SECS.includes(sid)?'':priBadge;
     h+=`<div class="trow${dc}${prc}${tagLine?' tw':''}" data-drag="${k}" ${drag} ondragstart="onDS(event,'${sid}',${ri})" ondragend="onDE()" ondragover="onRDO(event,'${sid}',${ri})" ondragleave="onRDL(event,'${sid}',${ri})">
   <div class="dh"><span></span><span></span><span></span></div>
@@ -562,8 +566,14 @@ function gmcvbHTML(){
     const h=rows(sid,T[sid]||[],'gmcvb');
     if(h)parts.push(`<div class="divrow">${SM[sid].label}</div>${h}`);
   });
+  let gsum=0,gcnt=0;
+  PRI_SECS.forEach(sid=>{(T[sid]||[]).forEach(t=>{
+    if(!SM[sid]||!t.text||t.priority!=='gmcvb')return;
+    if(filt==='active'&&t.done)return;if(filt==='done'&&!t.done)return;
+    gcnt++;const v=Number(t.value);if(!isNaN(v))gsum+=v;
+  });});
   const body=parts.length?parts.join(''):'<div class="noitems">No GMCVB leads yet. Set a task label to GMCVB in DBR or Funnel and it appears here.</div>';
-  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">GMCVB Leads</span></div>${body}</div>`;
+  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">GMCVB Leads</span><span class="gm-total"><span>${gcnt} ${gcnt===1?'lead':'leads'}</span>Total ${fmtVal(gsum)}</span></div>${body}</div>`;
 }
 function pipelineData(){
   const order=['definite','tentative','p2','p3'];
