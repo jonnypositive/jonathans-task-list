@@ -15,13 +15,13 @@ async function loadConfig() {
 function getSM() {
   const defaults = {
     calls:          {label:'Hot Dates and In-House Groups', hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:true},
-    dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
-    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true, hasArrDate:true},
+    dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true, hasArrDate:true},
+    proposals_out:  {label:'Funnel',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true, hasArrDate:true},
     contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
     prospecting:    {label:'Prospecting',                   hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
-    one_on_one:     {label:'One on One Tasks',              hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
+    one_on_one:     {label:'One on One Items',              hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     culture:        {label:'Culture Club',                  hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     affinity:       {label:'Sales Manager Affinity',        hasArrival:false, hasPerp:false, hasDateRange:false, hasTime:false},
     travel:         {label:'Travel',                        hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:false},
@@ -33,7 +33,7 @@ function getSM() {
     const cfg = (CFG.sections && CFG.sections[id]) || {};
     if (cfg.enabled === false) return;
     sm[id] = {
-      label:    cfg.label      || def.label,
+      label:    id==='proposals_out' ? def.label : (cfg.label || def.label),
       arr:      cfg.hasArrival !== undefined ? cfg.hasArrival : def.hasArrival,
       perp:     cfg.hasPerp    !== undefined ? cfg.hasPerp    : def.hasPerp,
       dr:       cfg.hasDateRange !== undefined ? cfg.hasDateRange : def.hasDateRange,
@@ -52,10 +52,17 @@ let AIDS = [];
 // Sections that use the Prospect / P3 / P2 / Tentative labels instead of High / Med / Low.
 // The stored field is still "priority"; only its allowed values and display change.
 const PRI_SECS = ['dbr','proposals_out'];
-const PRI={definite:'Definite',tentative:'Tentative',p2:'P2',p3:'P3',prospect:'Prospect'};
+const PRI={definite:'Definite',tentative:'Tentative',p2:'P2',p3:'P3',prospect:'Prospect',gmcvb:'GMCVB'};
 // Sort rank: Definite is always first. Proposals: Out then runs Tentative, P2, P3, Prospect, unlabeled.
-const PRI_RANK_PO={definite:0,tentative:1,p2:2,p3:3,prospect:4,none:5};
+const PRI_RANK_PO={definite:0,tentative:1,p2:2,p3:3,prospect:4,none:5,gmcvb:6};
 function priRank(sid,t){const p=t.priority||'none';if(p==='definite')return 0;if(sid==='proposals_out')return PRI_RANK_PO[p]!==undefined?PRI_RANK_PO[p]:5;return 1;}
+// DBR now carries Decision Date (stored in `arrival`, same as Proposals: Out) and Arrival Date (`arrDate`).
+// One time: dates that were entered as the old DBR "Arrival" move to `arrDate`.
+function migrateDbr(){
+  if(T.__meta&&T.__meta.dbrDec)return;
+  (T.dbr||[]).forEach(t=>{if(t.arrival&&!t.arrDate){t.arrDate=t.arrival;t.arrival=undefined;}});
+  T.__meta=Object.assign({},T.__meta,{dbrDec:true});
+}
 function srtPri(a,sid){const w=a.filter(t=>t.text).map((t,i)=>({t,i,r:priRank(sid,t)}));w.sort((x,y)=>x.r-y.r||x.i-y.i);return[...w.map(o=>o.t),...a.filter(t=>!t.text)];}
 // True only for the old "High" flag, and never in the sections that use the new labels
 function hi(sid,t){return t.priority==='high'&&!PRI_SECS.includes(sid);}
@@ -65,7 +72,7 @@ function fmtVal(v){const n=Number(v);return '$'+n.toLocaleString('en-US',{minimu
 // ── Default data ───────────────────────────────────────────────────────────
 const INIT={
   calls:[{text:'Linda Jones In House',done:false,priority:'none',travelStart:'2026-03-23',travelEnd:'2026-03-26'}],
-  dbr:[{text:'Barr Brands',done:false,priority:'high',arrival:'2026-06-01'}],
+  dbr:[{text:'Barr Brands',done:false,priority:'high',arrDate:'2026-06-01'}],
   proposals_prep:[{text:'PBR – Pending',done:false,priority:'none'},{text:'',done:false,priority:'none'},{text:'',done:false,priority:'none'}],
   proposals_out:[
     {text:'USAFA Captains',done:false,priority:'none',arrival:'2026-05-29'},
@@ -186,6 +193,7 @@ async function loadFromCloud(){
         T=d.tasks;
         if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
         AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
+        migrateDbr();
         PRI_SECS.forEach(id=>{if(T[id])T[id]=ss(id,T[id]);});
         setSyncStatus('saved','Synced');
         return;
@@ -199,6 +207,7 @@ async function loadFromCloud(){
       T=JSON.parse(s);
       if(!T.one_on_one)T.one_on_one=(T.proposals_prep||[]).filter(t=>t.text).map(t=>({...t}));
       AIDS.forEach(id=>{if(!T[id])T[id]=INIT[id]?JSON.parse(JSON.stringify(INIT[id])):[];});
+      migrateDbr();
       PRI_SECS.forEach(id=>{if(T[id])T[id]=ss(id,T[id]);});
       setSyncStatus('saved','Loaded from local cache');
       return;
@@ -267,7 +276,7 @@ function dbrDate(){
 // ── Actions ────────────────────────────────────────────────────────────────
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
-function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
+function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite','gmcvb']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
@@ -343,10 +352,10 @@ function onSecChange(){
   document.getElementById('mArrDRow').style.display=m.ad?'block':'none';
   document.getElementById('marrLbl').firstChild.textContent=m.ad?'Decision date ':'Arrival date ';
   document.getElementById('mValRow').style.display=m.val?'block':'none';
-  // Priority choices depend on the section: DBR and Proposals: Out use the four new labels
+  // Priority choices depend on the section: DBR and Funnel use the new labels
   const mpri=document.getElementById('mpri');
   if(PRI_SECS.includes(sid)){
-    mpri.innerHTML='<option value="none">None</option><option value="prospect">Prospect</option><option value="p3">P3</option><option value="p2">P2</option><option value="tentative">Tentative</option><option value="definite">Definite</option>';
+    mpri.innerHTML='<option value="none">None</option><option value="prospect">Prospect</option><option value="p3">P3</option><option value="p2">P2</option><option value="tentative">Tentative</option><option value="definite">Definite</option><option value="gmcvb">GMCVB</option>';
     mpri.value=(sid==='dbr')?'prospect':'none';
   }else{
     mpri.innerHTML='<option value="none">None</option><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option>';
@@ -456,10 +465,15 @@ function onDrop(e,destSid,l){
 function pl(p,sid){return PRI_SECS.includes(sid)?(PRI[p]||'+ label'):({high:'High',med:'Med',low:'Low',none:'-'}[p]||'-');}
 function bc(p,sid){return PRI_SECS.includes(sid)?(PRI[p]?'pri-'+p:'bn'):({high:'bh',med:'bm',low:'bl',none:'bn'}[p]||'bn');}
 
-function rows(sid,arr){
+// only==='gmcvb' lists just the GMCVB-labeled tasks; DBR and Funnel hide them (they live in GMCVB Leads)
+function rows(sid,arr,only){
   const m=SM[sid];if(!m)return'';
-  let src=filt==='active'?arr.map((t,i)=>({...t,_i:i})).filter(t=>!t.done):filt==='done'?arr.map((t,i)=>({...t,_i:i})).filter(t=>t.done&&!t.perpetual):arr;
+  let base=arr.map((t,i)=>({...t,_i:i}));
+  if(only==='gmcvb')base=base.filter(t=>t.text&&t.priority==='gmcvb');
+  else if(PRI_SECS.includes(sid))base=base.filter(t=>t.priority!=='gmcvb');
+  let src=filt==='active'?base.filter(t=>!t.done):filt==='done'?base.filter(t=>t.done&&!t.perpetual):base;
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'${sid}',this)"`;
+  if(!src.length&&only)return'';
   if(!src.length)return`<div class="tlist" ${dz}>${sid==='proposals_out'?'<div class="colhead"><span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>':''}<div class="noitems">No items. Use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
@@ -481,7 +495,12 @@ function rows(sid,arr){
       db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;
     }
     // Proposals: Out shows Decision Date, Arrival Date and Value in aligned, color-coded columns
-    let poCols='';
+    let poCols='',tagLine='';
+    if(sid==='dbr'){
+      const hv=t.value!==undefined&&t.value!==null&&t.value!=='';
+      tagLine=`<div class="tagline"><span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?'Decision '+fmt(t.arrival):'+ decision date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?'Arrival '+fmt(t.arrDate):'+ arrival date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span></div>`;
+      db='';
+    }
     if(sid==='proposals_out'){
       const hv=t.value!==undefined&&t.value!==null&&t.value!=='';
       poCols=`<span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?fmt(t.arrival):'+ date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?fmt(t.arrDate):'+ date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span>`;
@@ -490,7 +509,7 @@ function rows(sid,arr){
     // Value ($) badge: stays with the task as it moves between sections
     const hasVal=t.value!==undefined&&t.value!==null&&t.value!=='';
     let valBadge='';
-    if(m.val&&sid!=='proposals_out')valBadge=`<span class="dbadge${hasVal?' set':''}" onclick="tVal('${sid}',${ri})">${hasVal?fmtVal(t.value):'+ value'}</span>`;
+    if(m.val&&sid!=='proposals_out'&&sid!=='dbr')valBadge=`<span class="dbadge${hasVal?' set':''}" onclick="tVal('${sid}',${ri})">${hasVal?fmtVal(t.value):'+ value'}</span>`;
     // CHANGE 2: show time badge if present (hot dates / calls section)
     let timeBadge='';
     if(t.time)timeBadge=`<span class="dbadge set" style="cursor:default">@ ${t.time}</span>`;
@@ -512,15 +531,16 @@ function rows(sid,arr){
     const drag=t.text?'draggable="true"':'';
     const priBadge=`<span class="pb ${bc(t.priority||'none',sid)}${PRI_SECS.includes(sid)?' lead':''}" onclick="cyc('${sid}',${ri})">${pl(t.priority||'none',sid)}</span>`;
     const leadPri=PRI_SECS.includes(sid)?priBadge:'',trailPri=PRI_SECS.includes(sid)?'':priBadge;
-    h+=`<div class="trow${dc}${prc}" data-drag="${k}" ${drag} ondragstart="onDS(event,'${sid}',${ri})" ondragend="onDE()" ondragover="onRDO(event,'${sid}',${ri})" ondragleave="onRDL(event,'${sid}',${ri})">
+    h+=`<div class="trow${dc}${prc}${tagLine?' tw':''}" data-drag="${k}" ${drag} ondragstart="onDS(event,'${sid}',${ri})" ondragend="onDE()" ondragover="onRDO(event,'${sid}',${ri})" ondragleave="onRDL(event,'${sid}',${ri})">
   <div class="dh"><span></span><span></span><span></span></div>
   <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
   ${leadPri}<span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
   ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}${poCols}${trailPri}
   <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
+  ${tagLine}
 </div>`;
     // Arrival date picker row
-    if(oa)h+=`<div class="dprow"><span class="dplbl">${sid==='proposals_out'?'Decision Date:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    if(oa)h+=`<div class="dprow"><span class="dplbl">${m.ad?'Decision Date:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // Arrival Date picker (Proposals: Out)
     if(oad)h+=`<div class="dprow"><span class="dplbl">Arrival Date:</span><input type="date" id="dad_${sid}_${ri}" value="${efy(t.arrDate||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cAD('${sid}',${ri})">Set</button>${t.arrDate?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clAD('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // Value picker row
@@ -534,6 +554,17 @@ function rows(sid,arr){
   return`<div class="tlist" ${dz}>${colHead}${h}</div>`;
 }
 
+function gmcvbHTML(){
+  const parts=[];
+  PRI_SECS.forEach(sid=>{
+    if(!SM[sid])return;
+    if(!(T[sid]||[]).some(t=>t.text&&t.priority==='gmcvb'))return;
+    const h=rows(sid,T[sid]||[],'gmcvb');
+    if(h)parts.push(`<div class="divrow">${SM[sid].label}</div>${h}`);
+  });
+  const body=parts.length?parts.join(''):'<div class="noitems">No GMCVB leads yet. Set a task label to GMCVB in DBR or Funnel and it appears here.</div>';
+  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">GMCVB Leads</span></div>${body}</div>`;
+}
 function pipelineData(){
   const order=['definite','tentative','p2','p3'];
   const tot={};order.forEach(k=>{tot[k]={n:0,v:0};});
@@ -547,7 +578,7 @@ function pipelineHTML(){
   const t=pipelineData();
   const line=(k)=>`<tr><td><span class="pb pri-${k}">${PRI[k]}</span></td><td class="n">${t[k].n} ${t[k].n===1?'task':'tasks'}</td><td class="v">${fmtVal(t[k].v)}</td></tr>`;
   const all=Object.keys(t).reduce((a,k)=>({n:a.n+t[k].n,v:a.v+t[k].v}),{n:0,v:0});
-  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">Pipeline<span class="ssub">open items in DBR and Proposals: Out</span></span></div><table class="pipe-tbl"><tbody>${line('definite')}${line('tentative')}${line('p2')}${line('p3')}<tr class="tot"><td>Total pipeline</td><td class="n">${all.n} ${all.n===1?'task':'tasks'}</td><td class="v">${fmtVal(all.v)}</td></tr></tbody></table></div>`;
+  return`<div class="sec"><div class="shead" style="cursor:default"><span class="stitle">Pipeline<span class="ssub">open items in DBR and Funnel</span></span></div><table class="pipe-tbl"><tbody>${line('definite')}${line('tentative')}${line('p2')}${line('p3')}<tr class="tot"><td>Total pipeline</td><td class="n">${all.n} ${all.n===1?'task':'tasks'}</td><td class="v">${fmtVal(all.v)}</td></tr></tbody></table></div>`;
 }
 
 function sec(cls,title,sid,sub,onHeadClick){
@@ -626,9 +657,8 @@ function render(){
   g.innerHTML='';
   // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
   g.innerHTML+=pipelineHTML();
-  if(SM.calls)g.innerHTML+=sec('sec',SM.calls.label,'calls');
   if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
-  if(SM.proposals_out)g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');
+  if(SM.proposals_out){g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');g.innerHTML+=gmcvbHTML();}
 if(SM.contracts_out||SM.contracts_closed){
     g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols">
       <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('contracts_out')">+ Add</button></div>${rows('contracts_out',T.contracts_out||[])}</div>
@@ -637,8 +667,7 @@ if(SM.contracts_out||SM.contracts_closed){
   }
   // CHANGE 4: Tasks section — no page-break CSS anywhere
   if(SM.tasks)g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
-  if(SM.prospecting)g.innerHTML+=sec('sec',SM.prospecting.label,'prospecting');
-  if(SM.one_on_one)g.innerHTML+=sec('sec',SM.one_on_one.label,'one_on_one');
+  g.innerHTML+='<div class="sec3">'+(SM.calls?sec('sec',SM.calls.label,'calls'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+(SM.one_on_one?sec('sec',SM.one_on_one.label,'one_on_one'):'')+'</div>';
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
