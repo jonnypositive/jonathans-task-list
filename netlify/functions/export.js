@@ -4,7 +4,7 @@
 
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         BorderStyle, WidthType, ShadingType, VerticalAlign, AlignmentType,
-        ImageRun, Header } = require('docx');
+        ImageRun, Header, Tab, TabStopType } = require('docx');
 const fs   = require('fs');
 const path = require('path');
 
@@ -36,6 +36,14 @@ exports.handler = async (event) => {
     const rankOf = (sid, t) => { const p = t.priority || 'none'; if (p === 'definite') return 0; return sid === 'proposals_out' ? (RANK_PO[p] !== undefined ? RANK_PO[p] : 5) : 1; };
     ['dbr', 'proposals_out'].forEach(k => {
       if (Array.isArray(T[k])) T[k] = T[k].map((t, i) => ({ t, i, r: rankOf(k, t) })).sort((a, b) => a.r - b.r || a.i - b.i).map(o => o.t);
+    });
+
+    // Tasks labeled GMCVB appear only in the GMCVB Leads table (DBR first, then Funnel)
+    const GM = [];
+    ['dbr', 'proposals_out'].forEach(k => {
+      if (!Array.isArray(T[k])) return;
+      T[k].filter(t => t.text && t.priority === 'gmcvb').forEach(t => GM.push({ ...t, _src: k === 'dbr' ? 'DBR' : 'FUNNEL' }));
+      T[k] = T[k].filter(t => t.priority !== 'gmcvb');
     });
 
     // ── Date / time helpers ────────────────────────────────────────────────
@@ -144,6 +152,7 @@ exports.handler = async (event) => {
       const leadColors = { definite: '7A5A00', prospect: '2C4A7C', p3: '2E6B34', p2: '9A5B00', tentative: '6A3D99' };
       const leadNames  = { definite: 'DEFINITE', prospect: 'PROSPECT', p3: 'P3', p2: 'P2', tentative: 'TENTATIVE' };
       const hasLead = !!leadNames[t.priority];
+      if (opts && opts.src) ch.push(new TextRun({ text: '[' + opts.src + '] ', font: FONT, size: 14, bold: true, color: '7A7A7A' }));
       if (hasLead) ch.push(new TextRun({ text: '[' + leadNames[t.priority] + '] ', font: FONT, size: 14, bold: true, color: leadColors[t.priority] }));
 
       // Task text — bold if high priority
@@ -168,7 +177,11 @@ exports.handler = async (event) => {
       }
 
       // Arrival date (proposals/contracts)
-      if (!noMeta && showArr && t.arrival) {
+      if (!noMeta && showArr === 'dec') {
+        // DBR: Decision Date (burgundy) and Arrival Date (blue), same colors as Proposals: Out
+        if (t.arrival) ch.push(new TextRun({ text: ' Decision: ' + fmt(t.arrival), font: FONT, size: 14, color: '8B2635', bold: true }));
+        if (t.arrDate) ch.push(new TextRun({ text: ' Arrival: ' + fmt(t.arrDate), font: FONT, size: 14, color: '1F5FA8', bold: true }));
+      } else if (!noMeta && showArr && t.arrival) {
         ch.push(new TextRun({ text: ' Arr: ' + fmt(t.arrival), font: FONT, size: 14, color: '2E6B00', bold: true }));
       }
 
@@ -286,7 +299,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     }
 
     // Proposals: Out with color-coded Decision Date / Arrival Date / Value columns
-    function buildProposals(tasks) {
+    function buildProposals(tasks, title) {
       const active = tasks.filter(t => !t.done && (t.text || t.t));
       if (!active.length) return null;
       const cw = [5400, 1800, 1800, 1800];
@@ -302,7 +315,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
             children: [new TextRun({ text: text || '', font: head ? SUBF : FONT, size: head ? 14 : 16, bold: !head, color })] })],
         });
       }
-      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell('Proposals: Out', W, 4)] })];
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title || 'Funnel', W, 4)] })];
       rows.push(new TableRow({ cantSplit: true, children: [
         dCell('', cw[0], '404040', 0, null, true),
         dCell('DECISION DATE', cw[1], col.dec, 0, null, true),
@@ -311,7 +324,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       active.forEach((t, i) => {
         const hasV = t.value !== undefined && t.value !== null && t.value !== '';
         rows.push(new TableRow({ children: [
-          mkCell(t, cw[0], false, false, false, i, { noMeta: true }),
+          mkCell(t, cw[0], false, false, false, i, { noMeta: true, src: t._src }),
           dCell(t.arrival ? fmt(t.arrival) : '', cw[1], col.dec, i, t),
           dCell(t.arrDate ? fmt(t.arrDate) : '', cw[2], col.arr, i, t),
           dCell(hasV ? money(t.value) : '', cw[3], col.val, i, t) ] }));
@@ -348,8 +361,37 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [TW, TW, TW], rows });
     }
 
-    // Client Dates + DBR side by side (no sub-header row, separate navy headers)
-    function buildDual(lTitle, lTasks, lArr, lDR, rTitle, rTasks, rArr, rDR) {
+    // One pipeline line: label, task count and value on tab stops
+    function pipeCell(p, w) {
+      return new TableCell({
+        borders: B, width: { size: w, type: WidthType.DXA },
+        shading: { fill: p.fill || C.white, type: ShadingType.CLEAR },
+        margins: { top: 48, bottom: 48, left: 100, right: 100 },
+        children: [new Paragraph({
+          tabStops: [{ type: TabStopType.RIGHT, position: 3500 }, { type: TabStopType.RIGHT, position: w - 200 }],
+          children: [
+            new TextRun({ text: p.label, font: FONT, size: 17, bold: true, color: p.color || '222222' }),
+            new TextRun({ children: [new Tab(), p.n + (p.n === 1 ? ' task' : ' tasks')], font: FONT, size: 16, color: '555555' }),
+            new TextRun({ children: [new Tab(), p.v], font: FONT, size: 17, bold: true, color: '1E5E2E' }),
+          ],
+        })],
+      });
+    }
+
+    // Three equal columns (Hot Dates, Prospecting, One on One Items)
+    function buildTriple(cols) {
+      const act = cols.map(c => c.tasks.filter(t => !t.done && (t.text || t.t)));
+      if (!act.some(a => a.length)) return null;
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: cols.map(c => hCell(c.title, TW, 1)) })];
+      const max = Math.max(...act.map(a => a.length), 1);
+      for (let i = 0; i < max; i++) {
+        rows.push(new TableRow({ children: cols.map((c, ci) => act[ci][i] ? mkCell(act[ci][i], TW, false, !!c.showDR, false, i) : emCell(TW, i)) }));
+      }
+      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [TW, TW, TW], rows });
+    }
+
+    // Pipeline + DBR side by side (no sub-header row, separate navy headers)
+    function buildDual(lTitle, lTasks, lArr, lDR, rTitle, rTasks, rArr, rDR, lItems) {
       const lActive = lTasks.filter(t => !t.done && (t.text || t.t));
       const rActive = rTasks.filter(t => !t.done && (t.text || t.t));
 
@@ -376,10 +418,11 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       function bCell(item, w) {
         if (!item) return emCell(w, 0);
         if (item.div) return divCell(item.label, item.color, item.bg, w);
+        if (item.pipe) return pipeCell(item.pipe, w);
         return mkCell(item.t, w, item.sa, item.sd, false, item.ri);
       }
 
-      const li = sideItems(lActive, lArr, lDR);
+      const li = lItems || sideItems(lActive, lArr, lDR);
       const ri = sideItems(rActive, rArr, rDR);
       if (!li.length && !ri.length) return null;
 
@@ -472,11 +515,11 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [W], rows });
     }
 
-    // Pipeline tally by priority label
-    function buildPipeline() {
+    // Pipeline tally by priority label (open items in DBR and Funnel; GMCVB leads are not counted)
+    function pipelineItems() {
       const keys  = ['definite', 'tentative', 'p2', 'p3'];
-      const names = { definite: 'Definite', tentative: 'Tentative', p2: 'P2', p3: 'P3', prospect: 'Prospect' };
-      const cols  = { definite: '7A5A00', tentative: '6A3D99', p2: '9A5B00', p3: '2E6B34', prospect: '2C4A7C' };
+      const names = { definite: 'Definite', tentative: 'Tentative', p2: 'P2', p3: 'P3' };
+      const cols  = { definite: '7A5A00', tentative: '6A3D99', p2: '9A5B00', p3: '2E6B34' };
       const tot = {}; keys.forEach(k => { tot[k] = { n: 0, v: 0 }; });
       ['dbr', 'proposals_out'].forEach(sec => (T[sec] || []).forEach(t => {
         if (!t.text || t.done || !tot[t.priority]) return;
@@ -484,27 +527,10 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
         const v = Number(t.value); if (!isNaN(v)) tot[t.priority].v += v;
       }));
       const money = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
-      const cnt = n => n + (n === 1 ? ' task' : ' tasks');
-      const widths = [5400, 2400, 3000];
-      function cell(text, w, o) {
-        o = o || {};
-        return new TableCell({
-          borders: B, width: { size: w, type: WidthType.DXA },
-          shading: { fill: o.fill || C.white, type: ShadingType.CLEAR },
-          margins: { top: 40, bottom: 40, left: 120, right: 120 },
-          children: [new Paragraph({ alignment: o.right ? AlignmentType.RIGHT : AlignmentType.LEFT,
-            children: [new TextRun({ text, font: o.sub ? SUBF : FONT, size: 17, bold: !!o.bold, color: o.color || '222222' })] })],
-        });
-      }
-      const rowOf = (label, n, v, o) => new TableRow({ cantSplit: true, children: [
-        cell(label, widths[0], Object.assign({}, o)), cell(cnt(n), widths[1], Object.assign({ right: true }, o, { color: '555555' })),
-        cell(money(v), widths[2], Object.assign({ right: true }, o, { color: '1E5E2E', bold: true })) ] });
-      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell('Pipeline', W, 3)] })];
-      const line = k => rows.push(rowOf(names[k], tot[k].n, tot[k].v, { color: cols[k], bold: true }));
-      line('definite'); line('tentative'); line('p2'); line('p3');
+      const items = keys.map(k => ({ pipe: { label: names[k], n: tot[k].n, v: money(tot[k].v), color: cols[k] } }));
       const all = keys.reduce((a, k) => ({ n: a.n + tot[k].n, v: a.v + tot[k].v }), { n: 0, v: 0 });
-      rows.push(rowOf('Total pipeline', all.n, all.v, { fill: 'FBF8F2', bold: true }));
-      return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: widths, rows });
+      items.push({ pipe: { label: 'Total pipeline', n: all.n, v: money(all.v), fill: 'FBF8F2' } });
+      return items;
     }
 
     // ── Load logo ──────────────────────────────────────────────────────────
@@ -559,36 +585,38 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     children.push(sp(90));
 
     // ── Sections ───────────────────────────────────────────────────────────
-    // Pipeline tally (open items in DBR and Proposals: Out)
-    addSec(children, buildPipeline());
+    // The James Daily Pillar leads the page, as it does on screen
+    addSec(children, buildPillar(pillar));
 
-    // Client Dates (key: 'calls') + DBR side by side
+    // Pipeline (left) + DBR (right)
     addSec(children, buildDual(
-      'Client Dates',              T.calls          || [], false, true,
-      'DBR: ' + getDBRDate(),     T.dbr            || [], true,  false
+      'Pipeline',                  [], false, false,
+      'DBR: ' + getDBRDate(),      T.dbr || [], 'dec', false,
+      pipelineItems()
     ));
 
-    // Proposals: Out (full width)
-    addSec(children, buildProposals(T.proposals_out || []));
+    // Funnel (full width)
+    addSec(children, buildProposals(T.proposals_out || [], 'Funnel'));
 
- // Contracts
+    // GMCVB Leads (labeled in DBR or Funnel)
+    if (GM.length) addSec(children, buildProposals(GM, 'GMCVB Leads'));
+
+    // Contracts
     addSec(children, buildSplit(
       'Contracts', 'Out', T.contracts_out || [], 'Closed', T.contracts_closed || [], true
     ));
     // Tasks (with due dates)
     addSec(children, buildTwoCol('Tasks', T.tasks || [], false, false, true, null));
 
-    // Prospecting (single column) + One on One Tasks side by side
-    addSec(children, buildDual(
-      'Prospecting',       T.prospecting || [], false, false,
-      'One on One Tasks',  T.one_on_one  || [], false, false
-    ));
+    // Hot Dates + Prospecting + One on One Items
+    addSec(children, buildTriple([
+      { title: 'Client Dates',     tasks: T.calls       || [], showDR: true },
+      { title: 'Prospecting',      tasks: T.prospecting || [] },
+      { title: 'One on One Items', tasks: T.one_on_one  || [] },
+    ]));
 
-       // Travel (with 30/60-day dividers)
+    // Travel (with 30/60-day dividers)
     addSec(children, buildTwoCol('Upcoming Industry Events and Travel', T.travel || [], false, true, false, 'travel'));
-
-    // Daily Recap
-    addSec(children, buildPillar(pillar));
 
     // ── Assemble document ──────────────────────────────────────────────────
     const doc = new Document({
