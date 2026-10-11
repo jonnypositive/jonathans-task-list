@@ -299,20 +299,20 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     }
 
     // Proposals: Out with color-coded Decision Date / Arrival Date / Value columns
-    function buildProposals(tasks, title) {
+    function buildProposals(tasks, title, showTotal) {
       const active = tasks.filter(t => !t.done && (t.text || t.t));
       if (!active.length) return null;
       const cw = [5400, 1800, 1800, 1800];
       const col = { dec: '8B2635', arr: '1F5FA8', val: '1E5E2E' };
       const money = v => { const n = Number(v); return '$' + n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
-      function dCell(text, w, color, ri, t, head) {
+      function dCell(text, w, color, ri, t, head, tot) {
         return new TableCell({
           borders: B, width: { size: w, type: WidthType.DXA },
-          shading: { fill: head ? 'F2F2F2' : tbg(t, ri), type: ShadingType.CLEAR },
+          shading: { fill: tot ? 'FBF8F2' : head ? 'F2F2F2' : tbg(t, ri), type: ShadingType.CLEAR },
           verticalAlign: VerticalAlign.CENTER,
-          margins: { top: 48, bottom: 48, left: 80, right: 80 },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER,
-            children: [new TextRun({ text: text || '', font: head ? SUBF : FONT, size: head ? 14 : 16, bold: !head, color })] })],
+          margins: { top: 48, bottom: 48, left: tot && w > 3000 ? 100 : 80, right: 80 },
+          children: [new Paragraph({ alignment: tot && w > 3000 ? AlignmentType.LEFT : AlignmentType.CENTER,
+            children: [new TextRun({ text: text || '', font: tot ? FONT : head ? SUBF : FONT, size: tot ? 17 : head ? 14 : 16, bold: tot || !head, color })] })],
         });
       }
       const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title || 'Funnel', W, 4)] })];
@@ -329,6 +329,14 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
           dCell(t.arrDate ? fmt(t.arrDate) : '', cw[2], col.arr, i, t),
           dCell(hasV ? money(t.value) : '', cw[3], col.val, i, t) ] }));
       });
+      if (showTotal) {
+        const sum = active.reduce((a, t) => a + (isNaN(Number(t.value)) ? 0 : Number(t.value)), 0);
+        rows.push(new TableRow({ cantSplit: true, children: [
+          dCell('Total, ' + active.length + (active.length === 1 ? ' lead' : ' leads'), cw[0], '222222', 1, {}, false, true),
+          dCell('', cw[1], '222222', 1, {}, false, true),
+          dCell('', cw[2], '222222', 1, {}, false, true),
+          dCell(money(sum), cw[3], col.val, 1, {}, false, true) ] }));
+      }
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: cw, rows });
     }
 
@@ -599,7 +607,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     addSec(children, buildProposals(T.proposals_out || [], 'Funnel'));
 
     // GMCVB Leads (labeled in DBR or Funnel)
-    if (GM.length) addSec(children, buildProposals(GM, 'GMCVB Leads'));
+    if (GM.length) addSec(children, buildProposals(GM, 'GMCVB Leads', true));
 
     // Contracts
     addSec(children, buildSplit(
