@@ -16,7 +16,7 @@ function getSM() {
   const defaults = {
     calls:          {label:'Hot Dates and In-House Groups', hasArrival:false, hasPerp:false, hasDateRange:true,  hasTime:true},
     dbr:            {label:'DBR',                           hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
-    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
+    proposals_out:  {label:'Proposals: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true, hasArrDate:true},
     contracts_out:  {label:'Contracts: Out',                hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     contracts_closed:{label:'Contracts: Closed',             hasArrival:true,  hasPerp:false, hasDateRange:false, hasTime:false, hasValue:true},
     tasks:          {label:'Tasks',                         hasArrival:false, hasPerp:true,  hasDateRange:false, hasTime:false, hasDueDate:true},
@@ -40,6 +40,7 @@ function getSM() {
       time:     def.hasTime    || false,
       dueDate:  def.hasDueDate || false,
       val:      def.hasValue   || false,
+      ad:       def.hasArrDate || false,
     };
   });
   return sm;
@@ -271,6 +272,9 @@ function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
 function scrollToTop(){document.getElementById('appTop').scrollIntoView({behavior:'smooth'});window.scrollTo({top:0,behavior:'smooth'});}
 function tDP(sid,idx){const k=sid+'_'+idx;openDP=(openDP===k)?null:k;render();if(openDP){setTimeout(()=>{const d=document.getElementById('da_'+openDP);if(d)d.focus();},80);}}
+function tAD(sid,idx){const k='ad_'+sid+'_'+idx;openDP=(openDP===k)?null:k;render();if(openDP){setTimeout(()=>{const d=document.getElementById('dad_'+sid+'_'+idx);if(d)d.focus();},80);}}
+function cAD(sid,idx){const d=document.getElementById('dad_'+sid+'_'+idx);if(!d)return;T[sid][idx].arrDate=d.value?efy(d.value):undefined;scheduleSave();openDP=null;render();}
+function clAD(sid,idx){T[sid][idx].arrDate=undefined;scheduleSave();openDP=null;render();}
 function cDate(sid,idx){const k=sid+'_'+idx,dp=document.getElementById('da_'+k);if(!dp)return;T[sid][idx].arrival=dp.value?efy(dp.value):undefined;scheduleSave();openDP=null;render();}
 function clDate(sid,idx){T[sid][idx].arrival=undefined;scheduleSave();openDP=null;render();}
 function tDR(sid,idx){const k='dr_'+sid+'_'+idx;openDP=(openDP===k)?null:k;render();if(openDP){setTimeout(()=>{const d=document.getElementById('ds_'+sid+'_'+idx);if(d)d.focus();},80);}}
@@ -317,7 +321,7 @@ function commitEdit(){
 // CHANGE 1: openAdd now accepts a pre-selected section and opens the modal
 function openAdd(pre){
   document.getElementById('mSec').value=pre||'';
-  ['mtxt','marr','mts','mte','mnotes','mval'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['mtxt','marr','marrd','mts','mte','mnotes','mval'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const mtime=document.getElementById('mtime');if(mtime)mtime.value='';
   const mduedate=document.getElementById('mduedate');if(mduedate)mduedate.value='';
   document.getElementById('mpri').value='none';
@@ -336,6 +340,8 @@ function onSecChange(){
   document.getElementById('mTag').textContent=m.label;
   document.getElementById('mPerpRow').style.display=m.perp?'flex':'none';
   document.getElementById('mArrRow').style.display=m.arr?'block':'none';
+  document.getElementById('mArrDRow').style.display=m.ad?'block':'none';
+  document.getElementById('marrLbl').firstChild.textContent=m.ad?'Decision date ':'Arrival date ';
   document.getElementById('mValRow').style.display=m.val?'block':'none';
   // Priority choices depend on the section: DBR and Proposals: Out use the four new labels
   const mpri=document.getElementById('mpri');
@@ -372,6 +378,8 @@ function confirmM(){
   const task={text:txt,done:false,priority:pri};
   if(perp)task.perpetual=true;
   if(arr)task.arrival=efy(arr);
+  const marrd=document.getElementById('marrd');
+  if(SM[sid]&&SM[sid].ad&&marrd&&marrd.value)task.arrDate=efy(marrd.value);
   if(ts)task.travelStart=efy(ts);
   if(te)task.travelEnd=efy(te);
   // CHANGE 2: save time for hot dates
@@ -452,7 +460,7 @@ function rows(sid,arr){
   const m=SM[sid];if(!m)return'';
   let src=filt==='active'?arr.map((t,i)=>({...t,_i:i})).filter(t=>!t.done):filt==='done'?arr.map((t,i)=>({...t,_i:i})).filter(t=>t.done&&!t.perpetual):arr;
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'${sid}',this)"`;
-  if(!src.length)return`<div class="tlist" ${dz}><div class="noitems">No items. Use + Add task</div></div>`;
+  if(!src.length)return`<div class="tlist" ${dz}>${sid==='proposals_out'?'<div class="colhead"><span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>':''}<div class="noitems">No items. Use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
     const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=hi(sid,t)&&!t.done&&!ip;
@@ -461,7 +469,7 @@ function rows(sid,arr){
     if(!ip&&!isHi&&t.text&&!st&&filt!=='done'){h+='<div class="divrow">Today</div>';st=true;}
     const dc=t.done?' done':'',prc=ip?' prow':isHi?' hirow':'';
     const pb=ip?'<span class="perpb">∞</span>':'';
-    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk),ov=(openDP==='val_'+k),onk=(openNotes===k);
+    const k=sid+'_'+ri,drk='dr_'+sid+'_'+ri,oa=(openDP===k),odr=(openDP===drk),ov=(openDP==='val_'+k),oad=(openDP==='ad_'+k),onk=(openNotes===k);
     let db='';
     // CHANGE 3: show "Decision Due Date" label for proposals_out arrival dates
     const arrLabel = (sid==='proposals_out') ? 'Decision Due Date' : '+ date';
@@ -472,10 +480,17 @@ function rows(sid,arr){
       let lbl=has?((t.travelStart?fmt(t.travelStart):'?')+' to '+(t.travelEnd?fmt(t.travelEnd):'?')):'+ dates';
       db=`<span class="dbadge${has?' set':''}" onclick="tDR('${sid}',${ri})">${lbl}</span>`;
     }
+    // Proposals: Out shows Decision Date, Arrival Date and Value in aligned, color-coded columns
+    let poCols='';
+    if(sid==='proposals_out'){
+      const hv=t.value!==undefined&&t.value!==null&&t.value!=='';
+      poCols=`<span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?fmt(t.arrival):'+ date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?fmt(t.arrDate):'+ date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span>`;
+      db='';
+    }
     // Value ($) badge: stays with the task as it moves between sections
     const hasVal=t.value!==undefined&&t.value!==null&&t.value!=='';
     let valBadge='';
-    if(m.val)valBadge=`<span class="dbadge${hasVal?' set':''}" onclick="tVal('${sid}',${ri})">${hasVal?fmtVal(t.value):'+ value'}</span>`;
+    if(m.val&&sid!=='proposals_out')valBadge=`<span class="dbadge${hasVal?' set':''}" onclick="tVal('${sid}',${ri})">${hasVal?fmtVal(t.value):'+ value'}</span>`;
     // CHANGE 2: show time badge if present (hot dates / calls section)
     let timeBadge='';
     if(t.time)timeBadge=`<span class="dbadge set" style="cursor:default">@ ${t.time}</span>`;
@@ -501,11 +516,13 @@ function rows(sid,arr){
   <div class="dh"><span></span><span></span><span></span></div>
   <div class="${cc}" onclick="tog('${sid}',${ri})">${cx}</div>
   ${leadPri}<span class="tspan" onclick="startEdit('${sid}',${ri},this.parentElement)" style="${ts}">${tx}</span>
-  ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}${trailPri}
+  ${pb}${timeBadge}${dueBadge}${db}${valBadge}${notesBadge}${poCols}${trailPri}
   <button class="delbtn" onclick="del('${sid}',${ri})">&times;</button>
 </div>`;
     // Arrival date picker row
-    if(oa)h+=`<div class="dprow"><span class="dplbl">${sid==='proposals_out'?'Decision Due:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    if(oa)h+=`<div class="dprow"><span class="dplbl">${sid==='proposals_out'?'Decision Date:':'Arrival:'}</span><input type="date" id="da_${k}" value="${efy(t.arrival||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cDate('${sid}',${ri})">Set</button>${t.arrival?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clDate('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
+    // Arrival Date picker (Proposals: Out)
+    if(oad)h+=`<div class="dprow"><span class="dplbl">Arrival Date:</span><input type="date" id="dad_${sid}_${ri}" value="${efy(t.arrDate||'')}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cAD('${sid}',${ri})">Set</button>${t.arrDate?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clAD('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // Value picker row
     if(ov)h+=`<div class="dprow"><span class="dplbl">Value ($):</span><input type="text" inputmode="decimal" id="dv_${sid}_${ri}" value="${hasVal?t.value:''}" placeholder="0" onkeydown="if(event.key==='Enter'){cVal('${sid}',${ri})}"/><button class="bp" style="font-size:11px;padding:3px 10px" onclick="cVal('${sid}',${ri})">Set</button>${hasVal?`<button class="bd" style="font-size:11px;padding:3px 8px" onclick="clVal('${sid}',${ri})">Clear</button>`:''}<button style="font-size:11px;padding:3px 8px" onclick="openDP=null;render()">Cancel</button></div>`;
     // Travel date range picker row
@@ -513,11 +530,12 @@ function rows(sid,arr){
     // CHANGE 6: inline notes panel
     if(onk)h+=`<div class="notes-row"><textarea id="nta_${k}" placeholder="Add notes for this task...">${(t.notes||'').replace(/</g,'&lt;')}</textarea><div class="notes-row-footer"><button onclick="closeNotes()">Cancel</button><button class="bp" style="font-size:11px;padding:3px 10px" onclick="saveNotes('${sid}',${ri})">Save</button></div></div>`;
   });
-  return`<div class="tlist" ${dz}>${h}</div>`;
+  const colHead=sid==='proposals_out'?'<div class="colhead"><span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>':'';
+  return`<div class="tlist" ${dz}>${colHead}${h}</div>`;
 }
 
 function pipelineData(){
-  const order=['definite','tentative','p2','p3','prospect'];
+  const order=['definite','tentative','p2','p3'];
   const tot={};order.forEach(k=>{tot[k]={n:0,v:0};});
   PRI_SECS.forEach(sid=>{(T[sid]||[]).forEach(t=>{
     if(!t.text||t.done||!tot[t.priority])return;
@@ -528,9 +546,8 @@ function pipelineData(){
 function pipelineHTML(){
   const t=pipelineData();
   const line=(k)=>`<tr><td><span class="pb pri-${k}">${PRI[k]}</span></td><td class="n">${t[k].n} ${t[k].n===1?'task':'tasks'}</td><td class="v">${fmtVal(t[k].v)}</td></tr>`;
-  const cn=t.tentative.n+t.p2.n,cv=t.tentative.v+t.p2.v;
   const all=Object.keys(t).reduce((a,k)=>({n:a.n+t[k].n,v:a.v+t[k].v}),{n:0,v:0});
-  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">Pipeline<span class="ssub">open items in DBR and Proposals: Out</span></span></div><table class="pipe-tbl"><tbody>${line('definite')}${line('tentative')}${line('p2')}<tr class="combo"><td>Tentative + P2</td><td class="n">${cn} ${cn===1?'task':'tasks'}</td><td class="v">${fmtVal(cv)}</td></tr>${line('p3')}${line('prospect')}<tr class="tot"><td>Total pipeline</td><td class="n">${all.n} ${all.n===1?'task':'tasks'}</td><td class="v">${fmtVal(all.v)}</td></tr></tbody></table></div>`;
+  return`<div class="sec sfull"><div class="shead" style="cursor:default"><span class="stitle">Pipeline<span class="ssub">open items in DBR and Proposals: Out</span></span></div><table class="pipe-tbl"><tbody>${line('definite')}${line('tentative')}${line('p2')}${line('p3')}<tr class="tot"><td>Total pipeline</td><td class="n">${all.n} ${all.n===1?'task':'tasks'}</td><td class="v">${fmtVal(all.v)}</td></tr></tbody></table></div>`;
 }
 
 function sec(cls,title,sid,sub,onHeadClick){
