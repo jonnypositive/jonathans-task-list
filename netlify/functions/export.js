@@ -302,7 +302,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     function buildProposals(tasks, title, showTotal, withStatus) {
       const active = tasks.filter(t => !t.done && (t.text || t.t));
       if (!active.length) return null;
-      const cw = withStatus ? [4200, 1500, 1700, 1700, 1700] : [5400, 1800, 1800, 1800];
+      const cw = withStatus ? [3300, 2600, 1600, 1600, 1700] : [5400, 1800, 1800, 1800];
       const NC = cw.length;
       const col = { dec: '8B2635', arr: '1F5FA8', val: '1E5E2E' };
       const money = v => { const n = Number(v); return '$' + n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
