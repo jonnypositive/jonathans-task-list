@@ -299,10 +299,11 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     }
 
     // Proposals: Out with color-coded Decision Date / Arrival Date / Value columns
-    function buildProposals(tasks, title, showTotal) {
+    function buildProposals(tasks, title, showTotal, withStatus) {
       const active = tasks.filter(t => !t.done && (t.text || t.t));
       if (!active.length) return null;
-      const cw = [5400, 1800, 1800, 1800];
+      const cw = withStatus ? [4200, 1500, 1700, 1700, 1700] : [5400, 1800, 1800, 1800];
+      const NC = cw.length;
       const col = { dec: '8B2635', arr: '1F5FA8', val: '1E5E2E' };
       const money = v => { const n = Number(v); return '$' + n.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }); };
       function dCell(text, w, color, ri, t, head, tot) {
@@ -315,27 +316,29 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
             children: [new TextRun({ text: text || '', font: tot ? FONT : head ? SUBF : FONT, size: tot ? 17 : head ? 14 : 16, bold: tot || !head, color })] })],
         });
       }
-      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title || 'Funnel', W, 4)] })];
+      const rows = [new TableRow({ cantSplit: true, keepLines: true, children: [hCell(title || 'Funnel', W, NC)] })];
+      const stI = withStatus ? 1 : 0;
       rows.push(new TableRow({ cantSplit: true, children: [
         dCell('', cw[0], '404040', 0, null, true),
-        dCell('DECISION DATE', cw[1], col.dec, 0, null, true),
-        dCell('ARRIVAL DATE', cw[2], col.arr, 0, null, true),
-        dCell('VALUE', cw[3], col.val, 0, null, true) ] }));
+        ...(withStatus ? [dCell('LEAD STATUS', cw[1], '5B3FA0', 0, null, true)] : []),
+        dCell('DECISION DATE', cw[1 + stI], col.dec, 0, null, true),
+        dCell('ARRIVAL DATE', cw[2 + stI], col.arr, 0, null, true),
+        dCell('VALUE', cw[3 + stI], col.val, 0, null, true) ] }));
       active.forEach((t, i) => {
         const hasV = t.value !== undefined && t.value !== null && t.value !== '';
         rows.push(new TableRow({ children: [
           mkCell(t, cw[0], false, false, false, i, { noMeta: true, src: t._src }),
-          dCell(t.arrival ? fmt(t.arrival) : '', cw[1], col.dec, i, t),
-          dCell(t.arrDate ? fmt(t.arrDate) : '', cw[2], col.arr, i, t),
-          dCell(hasV ? money(t.value) : '', cw[3], col.val, i, t) ] }));
+          ...(withStatus ? [dCell(t.leadStatus || '', cw[1], '5B3FA0', i, t)] : []),
+          dCell(t.arrival ? fmt(t.arrival) : '', cw[1 + stI], col.dec, i, t),
+          dCell(t.arrDate ? fmt(t.arrDate) : '', cw[2 + stI], col.arr, i, t),
+          dCell(hasV ? money(t.value) : '', cw[3 + stI], col.val, i, t) ] }));
       });
       if (showTotal) {
         const sum = active.reduce((a, t) => a + (isNaN(Number(t.value)) ? 0 : Number(t.value)), 0);
         rows.push(new TableRow({ cantSplit: true, children: [
           dCell('Total, ' + active.length + (active.length === 1 ? ' lead' : ' leads'), cw[0], '222222', 1, {}, false, true),
-          dCell('', cw[1], '222222', 1, {}, false, true),
-          dCell('', cw[2], '222222', 1, {}, false, true),
-          dCell(money(sum), cw[3], col.val, 1, {}, false, true) ] }));
+          ...cw.slice(1, NC - 1).map(w => dCell('', w, '222222', 1, {}, false, true)),
+          dCell(money(sum), cw[NC - 1], col.val, 1, {}, false, true) ] }));
       }
       return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: cw, rows });
     }
@@ -607,7 +610,7 @@ return new Table({ width: { size: W, type: WidthType.DXA }, columnWidths: [HW, H
     addSec(children, buildProposals(T.proposals_out || [], 'Funnel'));
 
     // GMCVB Leads (labeled in DBR or Funnel)
-    if (GM.length) addSec(children, buildProposals(GM, 'GMCVB Leads', true));
+    if (GM.length) addSec(children, buildProposals(GM, 'GMCVB Leads', true, true));
 
     // Contracts
     addSec(children, buildSplit(
