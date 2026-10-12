@@ -277,6 +277,17 @@ function dbrDate(){
 function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElementById(id).classList.remove('on'));document.getElementById('f'+f[0].toUpperCase()+f.slice(1)).classList.add('on');render();}
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite','gmcvb']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
+// Property lead status for GMCVB leads (edit this list to change the dropdown choices)
+const LEAD_STATUS=['Pending','Tentative','Definite','Lost','Turned Down'];
+function lsSelect(sid,ri,t){
+  const v=t.leadStatus||'';
+  const list=(!v||LEAD_STATUS.includes(v))?LEAD_STATUS:[...LEAD_STATUS,v];
+  return`<select class="pcol pc-st${v?'':' empty'}" onchange="setLS('${sid}',${ri},this.value)" title="Property lead status"><option value="">Lead status</option>${list.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>`;
+}
+function setLS(sid,idx,val){T[sid][idx].leadStatus=val||undefined;scheduleSave();render();}
+function colHeadHTML(withStatus){
+  return'<div class="colhead">'+(withStatus?'<span class="ch-st">Lead Status</span>':'')+'<span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>';
+}
 function setPri(sid,idx,val){T[sid][idx].priority=val;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function del(sid,idx){T[sid].splice(idx,1);T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function clearDone(){AIDS.forEach(id=>{T[id]=ss(id,T[id].filter(t=>!t.done||t.perpetual));});scheduleSave();render();}
@@ -475,7 +486,7 @@ function rows(sid,arr,only){
   let src=filt==='active'?base.filter(t=>!t.done):filt==='done'?base.filter(t=>t.done&&!t.perpetual):base;
   const dz=`ondragover="onDO(event,this)" ondragleave="onDL(event,this)" ondrop="onDrop(event,'${sid}',this)"`;
   if(!src.length&&only)return'';
-  if(!src.length)return`<div class="tlist" ${dz}>${sid==='proposals_out'?'<div class="colhead"><span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>':''}<div class="noitems">No items. Use + Add task</div></div>`;
+  if(!src.length)return`<div class="tlist" ${dz}>${sid==='proposals_out'?colHeadHTML(only==='gmcvb'):''}<div class="noitems">No items. Use + Add task</div></div>`;
   let h='',sp=false,sh=false,st=false;
   src.forEach((t,vi)=>{
     const ri=t._i!==undefined?t._i:vi,ip=!!t.perpetual,isHi=hi(sid,t)&&!t.done&&!ip;
@@ -499,12 +510,12 @@ function rows(sid,arr,only){
     let poCols='',tagLine='';
     if(sid==='dbr'){
       const hv=t.value!==undefined&&t.value!==null&&t.value!=='';
-      tagLine=`<div class="tagline"><span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?'Decision '+fmt(t.arrival):'+ decision date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?'Arrival '+fmt(t.arrDate):'+ arrival date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span></div>`;
+      tagLine=`<div class="tagline">${only==='gmcvb'?lsSelect(sid,ri,t):''}<span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?'Decision '+fmt(t.arrival):'+ decision date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?'Arrival '+fmt(t.arrDate):'+ arrival date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span></div>`;
       db='';
     }
     if(sid==='proposals_out'){
       const hv=t.value!==undefined&&t.value!==null&&t.value!=='';
-      poCols=`<span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?fmt(t.arrival):'+ date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?fmt(t.arrDate):'+ date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span>`;
+      poCols=`${only==='gmcvb'?lsSelect(sid,ri,t):''}<span class="pcol pc-dec${t.arrival?'':' empty'}" onclick="tDP('${sid}',${ri})">${t.arrival?fmt(t.arrival):'+ date'}</span><span class="pcol pc-arr${t.arrDate?'':' empty'}" onclick="tAD('${sid}',${ri})">${t.arrDate?fmt(t.arrDate):'+ date'}</span><span class="pcol pc-val${hv?'':' empty'}" onclick="tVal('${sid}',${ri})">${hv?fmtVal(t.value):'+ value'}</span>`;
       db='';
     }
     // Value ($) badge: stays with the task as it moves between sections
@@ -554,7 +565,7 @@ function rows(sid,arr,only){
     // CHANGE 6: inline notes panel
     if(onk)h+=`<div class="notes-row"><textarea id="nta_${k}" placeholder="Add notes for this task...">${(t.notes||'').replace(/</g,'&lt;')}</textarea><div class="notes-row-footer"><button onclick="closeNotes()">Cancel</button><button class="bp" style="font-size:11px;padding:3px 10px" onclick="saveNotes('${sid}',${ri})">Save</button></div></div>`;
   });
-  const colHead=sid==='proposals_out'?'<div class="colhead"><span class="ch-dec">Decision Date</span><span class="ch-arr">Arrival Date</span><span class="ch-val">Value</span><span class="ch-del"></span></div>':'';
+  const colHead=sid==='proposals_out'?colHeadHTML(only==='gmcvb'):'';
   return`<div class="tlist" ${dz}>${colHead}${h}</div>`;
 }
 
