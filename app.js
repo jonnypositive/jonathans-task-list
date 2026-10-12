@@ -278,7 +278,7 @@ function sf(f){filt=f;['fAll','fActive','fDone'].forEach(id=>document.getElement
 function tog(sid,idx){const t=T[sid][idx];if(t.perpetual)return;t.done=!t.done;T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 function cyc(sid,idx){const o=PRI_SECS.includes(sid)?['none','prospect','p3','p2','tentative','definite','gmcvb']:['none','high','med','low'];let c=T[sid][idx].priority||'none';if(!o.includes(c))c='none';T[sid][idx].priority=o[(o.indexOf(c)+1)%o.length];T[sid]=ss(sid,T[sid]);scheduleSave();render();}
 // Property lead status for GMCVB leads (edit this list to change the dropdown choices)
-const LEAD_STATUS=['Pending','Tentative','Definite','Lost','Turned Down'];
+const LEAD_STATUS=['Open/ Bid Sent','Closed/ Decision Pending','Closed/ Won - Properties TBD','Closed/ Lost to Another City','Closed/ No Bid Sent'];
 function lsSelect(sid,ri,t){
   const v=t.leadStatus||'';
   const list=(!v||LEAD_STATUS.includes(v))?LEAD_STATUS:[...LEAD_STATUS,v];
