@@ -676,15 +676,13 @@ function render(){
   const cultureLabel=(SM.culture?SM.culture.label:'Culture Club')+' — '+getMeetingDate('culture');
   const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' — '+getMeetingDate('affinity');
   g.innerHTML='';
-  // Hot Dates and In-House Groups leads the page, full width
-  if(SM.calls)g.innerHTML+=sec('sfull',SM.calls.label,'calls');
   // Tasks (two columns) with Prospecting (one column) to its right
   g.innerHTML+='<div class="sec3">'+(SM.tasks?sec('span2',SM.tasks.label,'tasks'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+'</div>';
   // Pipeline | Contracts: Out | DBR
   g.innerHTML+='<div class="sec3">'+pipelineHTML()+(SM.contracts_out?sec('sec',SM.contracts_out.label,'contracts_out'):'')+(SM.dbr?sec('sec',SM.dbr.label,'dbr',dbrDate()):'')+'</div>';
   if(SM.proposals_out){g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');g.innerHTML+=gmcvbHTML();}
-  // One on One Items sits below Funnel and spans the full width
-  if(SM.one_on_one)g.innerHTML+=sec('sfull',SM.one_on_one.label,'one_on_one');
+  // One on One Items (two columns) below Funnel, with Hot Dates and In-House Groups in the third column on its right
+  g.innerHTML+='<div class="sec3">'+(SM.one_on_one?sec('span2',SM.one_on_one.label,'one_on_one'):'')+(SM.calls?sec('sec',SM.calls.label,'calls'):'')+'</div>';
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
