@@ -677,6 +677,7 @@ function render(){
   const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' — '+getMeetingDate('affinity');
   g.innerHTML='';
   // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
+  g.innerHTML+='<div class="sec3">'+(SM.calls?sec('sec',SM.calls.label,'calls'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+(SM.one_on_one?sec('sec',SM.one_on_one.label,'one_on_one'):'')+'</div>';
   g.innerHTML+=pipelineHTML();
   if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
   if(SM.proposals_out){g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');g.innerHTML+=gmcvbHTML();}
@@ -688,7 +689,6 @@ if(SM.contracts_out||SM.contracts_closed){
   }
   // CHANGE 4: Tasks section — no page-break CSS anywhere
   if(SM.tasks)g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
-  g.innerHTML+='<div class="sec3">'+(SM.calls?sec('sec',SM.calls.label,'calls'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+(SM.one_on_one?sec('sec',SM.one_on_one.label,'one_on_one'):'')+'</div>';
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
