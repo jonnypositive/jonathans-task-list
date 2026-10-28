@@ -122,7 +122,8 @@ select.pcol{font-family:inherit;-webkit-appearance:none;appearance:none;padding:
 .scols{display:grid;grid-template-columns:1fr 1fr}
 .scols3{display:grid;grid-template-columns:1fr 1fr 1fr}
 .sec3{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;align-items:start}
-@media(max-width:760px){.sec3{grid-template-columns:1fr}}
+@media(max-width:760px){.sec3{grid-template-columns:1fr}.sec3 .span2{grid-column:auto}}
+.sec3 .span2{grid-column:span 2}
 .sec3 .trow{flex-wrap:wrap;row-gap:3px}
 .sec3 .tspan{flex:1 1 120px;min-width:120px}
 .pipe-tbl{width:100%;border-collapse:collapse;font-size:12.5px}

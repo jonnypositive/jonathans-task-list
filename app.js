@@ -676,19 +676,15 @@ function render(){
   const cultureLabel=(SM.culture?SM.culture.label:'Culture Club')+' — '+getMeetingDate('culture');
   const affinityLabel=(SM.affinity?SM.affinity.label:'Sales Manager Affinity')+' — '+getMeetingDate('affinity');
   g.innerHTML='';
-  // CHANGE 2: "calls" section now renders as "Hot Dates and In-House Groups"
-  g.innerHTML+='<div class="sec3">'+(SM.calls?sec('sec',SM.calls.label,'calls'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+(SM.one_on_one?sec('sec',SM.one_on_one.label,'one_on_one'):'')+'</div>';
-  g.innerHTML+=pipelineHTML();
-  if(SM.dbr)g.innerHTML+=sec('sec',SM.dbr.label,'dbr',dbrDate());
+  // Hot Dates and In-House Groups leads the page, full width
+  if(SM.calls)g.innerHTML+=sec('sfull',SM.calls.label,'calls');
+  // Tasks (two columns) with Prospecting (one column) to its right
+  g.innerHTML+='<div class="sec3">'+(SM.tasks?sec('span2',SM.tasks.label,'tasks'):'')+(SM.prospecting?sec('sec',SM.prospecting.label,'prospecting'):'')+'</div>';
+  // Pipeline | Contracts: Out | DBR
+  g.innerHTML+='<div class="sec3">'+pipelineHTML()+(SM.contracts_out?sec('sec',SM.contracts_out.label,'contracts_out'):'')+(SM.dbr?sec('sec',SM.dbr.label,'dbr',dbrDate()):'')+'</div>';
   if(SM.proposals_out){g.innerHTML+=sec('sfull',SM.proposals_out.label,'proposals_out');g.innerHTML+=gmcvbHTML();}
-if(SM.contracts_out||SM.contracts_closed){
-    g.innerHTML+=`<div class="cwrap"><div class="shead" style="pointer-events:none"><span class="stitle">Contracts</span></div><div class="scols">
-      <div class="scol"><div class="scholdr"><span>${SM.contracts_out?SM.contracts_out.label:'Out'}</span><button class="scholdr-add" onclick="openAdd('contracts_out')">+ Add</button></div>${rows('contracts_out',T.contracts_out||[])}</div>
-      <div class="scol"><div class="scholdr"><span>${SM.contracts_closed?SM.contracts_closed.label:'Closed'}</span><button class="scholdr-add" onclick="openAdd('contracts_closed')">+ Add</button></div>${rows('contracts_closed',T.contracts_closed||[])}</div>
-    </div></div>`;
-  }
-  // CHANGE 4: Tasks section — no page-break CSS anywhere
-  if(SM.tasks)g.innerHTML+=sec('sfull',SM.tasks.label,'tasks');
+  // One on One Items sits below Funnel and spans the full width
+  if(SM.one_on_one)g.innerHTML+=sec('sfull',SM.one_on_one.label,'one_on_one');
   if(SM.culture)g.innerHTML+=sec('sec',cultureLabel,'culture');
   if(SM.affinity)g.innerHTML+=sec('sec',affinityLabel,'affinity');
   if(SM.travel)g.innerHTML+=sec('sfull',SM.travel.label,'travel');
